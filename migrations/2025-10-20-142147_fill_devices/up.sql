@@ -1,0 +1,11 @@
+-- INSERT INTO devices (devtype) VALUES
+-- ('Model X'),
+-- ('Model Y'),
+-- ('Model Z'),
+-- ('Model A'),
+-- ('Model B'),
+-- ('Model C'),
+-- ('Model D'),
+-- ('Model E'),
+-- ('Model F'),
+-- ('Model G');
