@@ -1,19 +1,23 @@
-use axum::{
-    extract::{FromRef, FromRequestParts, State},
-    http::{request::Parts, StatusCode},
-    response::IntoResponse,
-    routing::{get, post},
-    Json, Router
-};
-use serde::{Deserialize, Serialize};
-use log::info;
-use diesel::{associations::HasTable, prelude::*};
-use diesel_async::{
-    pooled_connection::{bb8, AsyncDieselConnectionManager},
-    AsyncMigrationHarness, AsyncPgConnection, RunQueryDsl,
-};
+// use axum::{
+//     extract::{FromRef, FromRequestParts, State},
+//     http::{request::Parts, StatusCode},
+//     response::IntoResponse,
+//     routing::{get, post},
+//     Json, Router
+// };
+// use serde::{Deserialize, Serialize};
+// use log::info;
+// use diesel::{associations::HasTable, prelude::*};
+// use diesel_async::{
+//     pooled_connection::{bb8, AsyncDieselConnectionManager},
+//     AsyncMigrationHarness, AsyncPgConnection, RunQueryDsl,
+// };
 use dotenvy::dotenv;
+use log::{Level, debug, error, info, log_enabled};
 use std::env;
+use std::net::UdpSocket;
+
+use crate::cose::decode_msg;
 
 // pub fn establish_connection() -> PgConnection {
 //     dotenv().ok();
@@ -23,11 +27,13 @@ use std::env;
 //         .unwrap_or_else(|_| panic!("Error connecting to {}", database_url))
 // }
 
-pub mod models;
-pub mod schema;
+// pub mod models;
+// pub mod schema;
 
-use self::models::*;
-type DbPool = bb8::Pool<AsyncPgConnection>;
+pub mod cose;
+
+// use self::models::*;
+// type DbPool = bb8::Pool<AsyncPgConnection>;
 
 #[tokio::main]
 async fn main() {
@@ -36,24 +42,44 @@ async fn main() {
     // initialize logging
     env_logger::init();
 
-    // set up connection pool
-    let db_url = std::env::var("DATABASE_URL").unwrap();
-    let config = AsyncDieselConnectionManager::<diesel_async::AsyncPgConnection>::new(db_url);
-    let pool = DbPool::builder().build(config).await.expect("Failed to create pool");
+    // // set up connection pool
+    // let db_url = std::env::var("DATABASE_URL").unwrap();
+    // let config = AsyncDieselConnectionManager::<diesel_async::AsyncPgConnection>::new(db_url);
+    // let pool = DbPool::builder().build(config).await.expect("Failed to create pool");
 
-    // build our application with a route
-    let app = Router::new()
-        // `GET /` goes to `root`
-        .route("/", get(get_devices))
-        .with_state(pool);
-
+    // // build our application with a route
+    // let app = Router::new()
+    //     // `GET /` goes to `root`
+    //     .route("/", get(get_devices))
+    //     .with_state(pool);
 
     // run our app with hyper
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:3000")
-        .await
-        .unwrap();
-    info!("listening on {}", listener.local_addr().unwrap());
-    axum::serve(listener, app).await.unwrap();
+    // let listener = tokio::net::TcpListener::bind("127.0.0.1:3000")
+    //     .await
+    //     .unwrap();
+    // info!("listening on {}", listener.local_addr().unwrap());
+    // axum::serve(listener, app).await.unwrap();
+
+    let socket = UdpSocket::bind("0.0.0.0:8080").expect("Couldn't bind to address");
+    println!("Listening on 0.0.0.0:8080");
+
+    let mut buf = [0u8; 1024];
+
+    loop {
+        // Receive data
+        let (amt, src) = socket.recv_from(&mut buf).expect("Didn't receive data");
+        info!("Received from {}: {:?}", src, &buf[..amt]);
+        let operation = decode_msg(&buf);
+        match operation {
+            Ok(op) => info!("Decoded operation: {:?}", op),
+            Err(e) => error!("Failed to decode operation: {}", e),
+        }
+
+        // Optional: send a response
+        socket
+            .send_to(b"Hello from server!", src)
+            .expect("Failed to send response");
+    }
 }
 
 // struct DatabaseConnection(bb8::PooledConnection<'static, AsyncPgConnection>);
@@ -74,56 +100,54 @@ async fn main() {
 //     }
 // }
 
-#[axum::debug_handler]
-async fn get_devices(
-    State(pool): State<DbPool>,
-) -> Result<Json<Vec<Device>>, (axum::http::StatusCode, String)> {
-    use schema::devices::dsl::*;
+// #[axum::debug_handler]
+// async fn get_devices(
+//     State(pool): State<DbPool>,
+// ) -> Result<Json<Vec<Device>>, (axum::http::StatusCode, String)> {
+//     use schema::devices::dsl::*;
 
-    let mut conn = pool.get_owned().await.map_err(internal_error)?;
-    let result = devices
-        .select(Device::as_select())
-        .load(&mut conn)
-        .await
-        .map_err(internal_error)?;
+//     let mut conn = pool.get_owned().await.map_err(internal_error)?;
+//     let result = devices
+//         .select(Device::as_select())
+//         .load(&mut conn)
+//         .await
+//         .map_err(internal_error)?;
 
-    Ok(Json(result))
-}
+//     Ok(Json(result))
+// }
 
+// async fn create_user(
+//     // this argument tells axum to parse the request body
+//     // as JSON into a `CreateUser` type
+//     Json(payload): Json<CreateUser>,
+// ) -> impl IntoResponse {
+//     // insert your application logic here
+//     let user = User {
+//         id: 1337,
+//         username: payload.username,
+//     };
 
-async fn create_user(
-    // this argument tells axum to parse the request body
-    // as JSON into a `CreateUser` type
-    Json(payload): Json<CreateUser>,
-) -> impl IntoResponse {
-    // insert your application logic here
-    let user = User {
-        id: 1337,
-        username: payload.username,
-    };
+//     // this will be converted into a JSON response
+//     // with a status code of `201 Created`
+//     (StatusCode::CREATED, Json(user))
+// }
 
-    // this will be converted into a JSON response
-    // with a status code of `201 Created`
-    (StatusCode::CREATED, Json(user))
-}
+// // the input to our `create_user` handler
+// #[derive(Deserialize)]
+// struct CreateUser {
+//     username: String,
+// }
 
-// the input to our `create_user` handler
-#[derive(Deserialize)]
-struct CreateUser {
-    username: String,
-}
+// // the output to our `create_user` handler
+// #[derive(Serialize)]
+// struct User {
+//     id: u64,
+//     username: String,
+// }
 
-// the output to our `create_user` handler
-#[derive(Serialize)]
-struct User {
-    id: u64,
-    username: String,
-}
-
-
-fn internal_error<E>(err: E) -> (StatusCode, String)
-where
-    E: std::error::Error,
-{
-    (StatusCode::INTERNAL_SERVER_ERROR, err.to_string())
-}
+// fn internal_error<E>(err: E) -> (StatusCode, String)
+// where
+//     E: std::error::Error,
+// {
+//     (StatusCode::INTERNAL_SERVER_ERROR, err.to_string())
+// }
