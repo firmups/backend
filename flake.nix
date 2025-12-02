@@ -1,7 +1,7 @@
 {
   description = "FIRMUPS backend development environment";
 
-  inputs.nixpkgs.url = "github:nixos/nixpkgs?ref=25.05";
+  inputs.nixpkgs.url = "github:nixos/nixpkgs?ref=25.11";
 
   outputs = { self, nixpkgs }:
     let

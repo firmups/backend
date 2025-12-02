@@ -17,8 +17,6 @@ use log::{Level, debug, error, info, log_enabled};
 use std::env;
 use std::net::UdpSocket;
 
-use crate::cose::decode_msg;
-
 // pub fn establish_connection() -> PgConnection {
 //     dotenv().ok();
 
@@ -60,8 +58,8 @@ async fn main() {
     // info!("listening on {}", listener.local_addr().unwrap());
     // axum::serve(listener, app).await.unwrap();
 
-    let socket = UdpSocket::bind("0.0.0.0:8080").expect("Couldn't bind to address");
-    println!("Listening on 0.0.0.0:8080");
+    let socket = UdpSocket::bind("0.0.0.0:53585").expect("Couldn't bind to address");
+    println!("Listening on 0.0.0.0:53585");
 
     let mut buf = [0u8; 1024];
 
@@ -69,9 +67,23 @@ async fn main() {
         // Receive data
         let (amt, src) = socket.recv_from(&mut buf).expect("Didn't receive data");
         info!("Received from {}: {:?}", src, &buf[..amt]);
-        let operation = decode_msg(&buf);
+        let cose_handler = cose::CoseHandler::new(vec![0u8; 16]); // Example key, replace with actual key bytes
+        let operation = cose_handler.decode_msg(&buf);
         match operation {
-            Ok(op) => info!("Decoded operation: {:?}", op),
+            //Ok(op) => info!("Decoded operation: {:?}", hex::encode(op)),
+            Ok(op) => {
+                let bytes: &[u8] = op.as_ref(); // or op if it's already &[u8]
+
+                // Convert each byte to hex and join
+                let hex_string: String = bytes
+                    .iter()
+                    .map(|b| format!("{:02X}", b)) // Uppercase hex, use {:02x} for lowercase
+                    .collect::<Vec<String>>()
+                    .join("");
+
+                info!("Decoded operation (hex): {}", hex_string);
+            }
+
             Err(e) => error!("Failed to decode operation: {}", e),
         }
 
