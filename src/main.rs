@@ -17,6 +17,8 @@ use log::{Level, debug, error, info, log_enabled};
 use std::env;
 use std::net::UdpSocket;
 
+use crate::operation::{GetParameterRequest, GetParameterResponse};
+
 // pub fn establish_connection() -> PgConnection {
 //     dotenv().ok();
 
@@ -28,7 +30,8 @@ use std::net::UdpSocket;
 // pub mod models;
 // pub mod schema;
 
-pub mod cose;
+mod cose;
+mod operation;
 
 // use self::models::*;
 // type DbPool = bb8::Pool<AsyncPgConnection>;
@@ -58,8 +61,10 @@ async fn main() {
     // info!("listening on {}", listener.local_addr().unwrap());
     // axum::serve(listener, app).await.unwrap();
 
-    let socket = UdpSocket::bind("0.0.0.0:53585").expect("Couldn't bind to address");
-    println!("Listening on 0.0.0.0:53585");
+    // let socket = UdpSocket::bind("0.0.0.0:53585").expect("Couldn't bind to address");
+    // println!("Listening on 0.0.0.0:53585");
+    let socket = UdpSocket::bind("192.0.2.2:53585").expect("Couldn't bind to address");
+    println!("Listening on 192.0.2.2:53585");
 
     let mut buf = [0u8; 1024];
 
@@ -68,30 +73,100 @@ async fn main() {
         let (amt, src) = socket.recv_from(&mut buf).expect("Didn't receive data");
         info!("Received from {}: {:?}", src, &buf[..amt]);
         let cose_handler = cose::CoseHandler::new(vec![0u8; 16]); // Example key, replace with actual key bytes
-        let operation = cose_handler.decode_msg(&buf);
+        let mut opcode: u16 = 0;
+        let mut device_id: u32 = 0;
+        let operation = cose_handler.decode_msg(&mut device_id, &mut opcode, &buf);
+        let operation_bytes: Vec<u8>;
         match operation {
             //Ok(op) => info!("Decoded operation: {:?}", hex::encode(op)),
             Ok(op) => {
-                let bytes: &[u8] = op.as_ref(); // or op if it's already &[u8]
+                operation_bytes = op;
 
                 // Convert each byte to hex and join
-                let hex_string: String = bytes
+                let hex_string: String = operation_bytes
                     .iter()
                     .map(|b| format!("{:02X}", b)) // Uppercase hex, use {:02x} for lowercase
                     .collect::<Vec<String>>()
                     .join("");
 
-                info!("Decoded operation (hex): {}", hex_string);
+                info!("Decoded message (hex): {}", hex_string);
             }
 
-            Err(e) => error!("Failed to decode operation: {}", e),
+            Err(e) => {
+                error!("Failed to decode message: {}", e);
+                continue;
+            }
         }
+
+        let decode_res = operation::decode_get_parameter_request(&operation_bytes[..]);
+        let get_parameter_request: GetParameterRequest;
+        match decode_res {
+            Ok(request) => {
+                get_parameter_request = request;
+            }
+            Err(e) => {
+                error!("Failed to decode operation: {}", e);
+                continue;
+            }
+        }
+
+        info!(
+            "Received request for parameter {}",
+            get_parameter_request.parameter_id.unwrap()
+        );
+        let param_value: u64 = 42;
+        let get_parameter_response = GetParameterResponse {
+            parameter_id: get_parameter_request.parameter_id.unwrap(),
+            parameter_type: get_parameter_request.parameter_type.unwrap(),
+            parameter_value: param_value.to_be_bytes().to_vec(),
+        };
+
+        let encoding_res = operation::encode_get_parameter_response(&get_parameter_response);
+        let operation_buf: Vec<u8>;
+        match encoding_res {
+            Ok(encoded) => {
+                operation_buf = encoded;
+            }
+            Err(e) => {
+                error!("Failed to encode operation: {}", e);
+                continue;
+            }
+        }
+        info!("Encoded operation has length: {}", operation_buf.len());
+
+        let msg_encoding_res = cose_handler.encode_msg(
+            device_id,
+            operation::OperationType::GetParameterResponse as u16,
+            &operation_buf[..],
+        );
+        let response_buf: Vec<u8>;
+        match msg_encoding_res {
+            Ok(encoded) => {
+                response_buf = encoded;
+            }
+            Err(e) => {
+                error!("Failed to encode operation: {}", e);
+                continue;
+            }
+        }
+
+        info!("sending response of size: {}", response_buf.len());
+        info!("Content: {}", to_hex_upper(&response_buf[..]));
 
         // Optional: send a response
         socket
-            .send_to(b"Hello from server!", src)
+            .send_to(&response_buf[..], src)
             .expect("Failed to send response");
     }
+}
+
+fn to_hex_upper(bytes: &[u8]) -> String {
+    let mut s = String::with_capacity(bytes.len() * 2);
+    for b in bytes {
+        use std::fmt::Write as _;
+        write!(&mut s, "{:02X}", b).unwrap();
+    }
+    s
 }
 
 // struct DatabaseConnection(bb8::PooledConnection<'static, AsyncPgConnection>);

@@ -1,3 +1,5 @@
+use log::debug;
+use log::info;
 use minicbor::Decoder;
 use minicbor::Encoder;
 use minicbor::encode::write::Cursor;
@@ -7,7 +9,7 @@ mod crypto_ascon;
 
 enum EncryptionAlgorithm {
     Aes128Gcm = 1,
-    AsconAead128 = 2,
+    AsconAead128 = 35,
 }
 
 enum ProtectedHeaderKey {
@@ -49,7 +51,7 @@ impl From<u16> for CoseAlgorithmIdentifier {
 }
 
 struct ProtectedHeader {
-    device_id: Option<u16>,
+    device_id: Option<u32>,
     opcode: Option<u16>,
     encryption_algorithm: Option<EncryptionAlgorithm>,
     nonce: Option<Vec<u8>>,
@@ -64,7 +66,12 @@ impl CoseHandler {
         CoseHandler { key_bytes }
     }
 
-    pub fn decode_msg(&self, msg: &[u8]) -> Result<Vec<u8>, minicbor::decode::Error> {
+    pub fn decode_msg(
+        &self,
+        device_id: &mut u32,
+        opcode: &mut u16,
+        msg: &[u8],
+    ) -> Result<Vec<u8>, minicbor::decode::Error> {
         let mut decoder = Decoder::new(&msg);
         if decoder.array()? != Some(3) {
             return Err(minicbor::decode::Error::message(
@@ -122,6 +129,12 @@ impl CoseHandler {
             );
             match res {
                 Ok(vec) => {
+                    debug!(
+                        "Decoded COSE message with opcode {:?}",
+                        protected_header.opcode
+                    );
+                    *device_id = protected_header.device_id.unwrap();
+                    *opcode = protected_header.opcode.unwrap();
                     return Ok(vec);
                 }
                 Err(_) => {
@@ -137,14 +150,14 @@ impl CoseHandler {
 
     pub fn encode_msg(
         &self,
-        device_id: u16,
+        device_id: u32,
         operation_id: u16,
         operation: &[u8],
     ) -> Result<Vec<u8>, minicbor::decode::Error> {
-        let mut cursor: Cursor<[u8; 1024]> = Cursor::new([0u8;1024]);
+        let mut cursor: Cursor<[u8; 1024]> = Cursor::new([0u8; 1024]);
         let mut enc = Encoder::new(&mut cursor);
 
-        let mut nonce = [0u8; 12]; // 12 bytes for a nonce
+        let mut nonce = [0u8; 16];
         let random_res = getrandom::fill(&mut nonce);
         match random_res {
             Ok(()) => (),
@@ -157,11 +170,12 @@ impl CoseHandler {
             device_id: Some(device_id),
             opcode: Some(operation_id),
             encryption_algorithm: Some(EncryptionAlgorithm::AsconAead128),
-            nonce: Some(nonce.to_vec()), // Example nonce, replace with actual nonce
+            nonce: Some(nonce.to_vec()),
         };
 
         let protected_header_buf = encode_protected_header(protected_header)?;
-        let crypto_result = crypto_ascon::decrypt_operation_ascon(
+        debug!("protected header size: {}", protected_header_buf.len());
+        let crypto_result = crypto_ascon::encrypt_operation_ascon(
             operation,
             &protected_header_buf,
             &nonce,
@@ -173,6 +187,7 @@ impl CoseHandler {
                 return Err(minicbor::decode::Error::message("Encryption failed"));
             }
         };
+        debug!("Ciphertext size: {}", ciphertext.len());
 
         enc.array(3).unwrap();
         enc.bytes(&protected_header_buf).unwrap();
@@ -189,16 +204,16 @@ impl CoseHandler {
 fn encode_protected_header(
     protected_header: ProtectedHeader,
 ) -> Result<Vec<u8>, minicbor::decode::Error> {
-    let mut buf = [0u8; 256]; // fixed-size buffer
-    let mut enc = Encoder::new(&mut buf[..]);
+    let mut cursor: Cursor<[u8; 256]> = Cursor::new([0u8; 256]);
+    let mut enc = Encoder::new(&mut cursor);
 
-    enc.map(4);
-    enc.u16(ProtectedHeaderKey::DeviceId as u16);
-    enc.u16(protected_header.device_id.unwrap());
-    enc.u16(ProtectedHeaderKey::Opcode as u16);
-    enc.u16(protected_header.opcode.unwrap());
+    enc.map(5);
     enc.u16(ProtectedHeaderKey::EncryptionAlgorithm as u16);
     enc.u16(protected_header.encryption_algorithm.unwrap() as u16);
+    enc.u16(ProtectedHeaderKey::DeviceId as u16);
+    enc.u32(protected_header.device_id.unwrap());
+    enc.u16(ProtectedHeaderKey::Opcode as u16);
+    enc.u16(protected_header.opcode.unwrap());
     enc.u16(ProtectedHeaderKey::EncryptionNonce as u16);
     enc.bytes(&protected_header.nonce.unwrap());
     enc.u16(ProtectedHeaderKey::CriticalHeaderList as u16);
@@ -206,7 +221,10 @@ fn encode_protected_header(
     enc.u16(ProtectedHeaderKey::DeviceId as u16);
     enc.u16(ProtectedHeaderKey::Opcode as u16);
 
-    Ok(buf.to_vec())
+    let pos = cursor.position() as usize;
+    let inner = cursor.into_inner();
+
+    Ok(inner[..pos].to_vec())
 }
 
 fn decode_protected_header(
@@ -224,7 +242,7 @@ fn decode_protected_header(
     for _ in 0..map_size {
         let key = decoder.u16()?;
         match ProtectedHeaderKey::from(key) {
-            ProtectedHeaderKey::DeviceId => header.device_id = Some(decoder.u16()?),
+            ProtectedHeaderKey::DeviceId => header.device_id = Some(decoder.u32()?),
             ProtectedHeaderKey::Opcode => header.opcode = Some(decoder.u16()?),
             ProtectedHeaderKey::EncryptionAlgorithm => {
                 let alg = decoder.u16()?;

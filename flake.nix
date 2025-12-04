@@ -19,6 +19,7 @@
             buildInputs = with pkgs; [
               rustc
               cargo
+              rustfmt
               lldb_20
               diesel-cli
               libpq
