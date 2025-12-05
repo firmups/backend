@@ -4,7 +4,7 @@ CREATE TABLE device_type (
     name VARCHAR(100) NOT NULL
 );
 -- Device Type Parameters
-CREATE TYPE parameter_type AS ENUM ('STRING', 'INTEGER', 'BOOLEAN', 'FLOAT', 'DATE', 'BINARY');
+CREATE TYPE parameter_type AS ENUM ('STRING', 'INTEGER', 'BOOLEAN', 'FLOAT', 'BINARY');
 
 CREATE TABLE device_type_parameter (
     id SERIAL PRIMARY KEY,
@@ -68,7 +68,7 @@ CREATE TABLE device_key (
 );
 
 -- Lightweight Key Details
-CREATE TYPE crypto_algorithm AS ENUM ('AES', 'CHACHA20');
+CREATE TYPE crypto_algorithm AS ENUM ('AES-GCM', 'ASCON-AEAD128');
 
 CREATE TABLE lightweight_key_details (
     id SERIAL PRIMARY KEY,

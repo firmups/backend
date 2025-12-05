@@ -4,8 +4,8 @@ use minicbor::Decoder;
 use minicbor::Encoder;
 use minicbor::encode::write::Cursor;
 
-mod crypto_aes;
-mod crypto_ascon;
+use crate::crypto::crypto_aes;
+use crate::crypto::crypto_ascon;
 
 enum EncryptionAlgorithm {
     Aes128Gcm = 1,

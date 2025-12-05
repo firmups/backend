@@ -24,4 +24,5 @@ target
 .env
 
 # Db files
-db/
+db/pg
+!db/docker-compose.yaml

@@ -1,240 +1,48 @@
-// use axum::{
-//     extract::{FromRef, FromRequestParts, State},
-//     http::{request::Parts, StatusCode},
-//     response::IntoResponse,
-//     routing::{get, post},
-//     Json, Router
-// };
-// use serde::{Deserialize, Serialize};
-// use log::info;
-// use diesel::{associations::HasTable, prelude::*};
-// use diesel_async::{
-//     pooled_connection::{bb8, AsyncDieselConnectionManager},
-//     AsyncMigrationHarness, AsyncPgConnection, RunQueryDsl,
-// };
+use diesel_async::{
+    AsyncPgConnection,
+    pooled_connection::{AsyncDieselConnectionManager, bb8},
+};
 use dotenvy::dotenv;
-use log::{Level, debug, error, info, log_enabled};
-use std::env;
-use std::net::UdpSocket;
+use std::{net::SocketAddr, sync::Arc};
 
-use crate::operation::{GetParameterRequest, GetParameterResponse};
+mod api;
+mod codec;
+mod crypto;
+mod db;
 
-// pub fn establish_connection() -> PgConnection {
-//     dotenv().ok();
-
-//     let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
-//     PgConnection::establish(&database_url)
-//         .unwrap_or_else(|_| panic!("Error connecting to {}", database_url))
-// }
-
-// pub mod models;
-// pub mod schema;
-
-mod cose;
-mod operation;
-
-// use self::models::*;
-// type DbPool = bb8::Pool<AsyncPgConnection>;
+type DbPool = bb8::Pool<AsyncPgConnection>;
 
 #[tokio::main]
 async fn main() {
-    // load .env variables
     dotenv().ok();
     // initialize logging
     env_logger::init();
 
-    // // set up connection pool
-    // let db_url = std::env::var("DATABASE_URL").unwrap();
-    // let config = AsyncDieselConnectionManager::<diesel_async::AsyncPgConnection>::new(db_url);
-    // let pool = DbPool::builder().build(config).await.expect("Failed to create pool");
+    // DB Pool setup
+    let db_url = std::env::var("DATABASE_URL").unwrap();
+    let config = AsyncDieselConnectionManager::<diesel_async::AsyncPgConnection>::new(db_url);
+    let pool = DbPool::builder()
+        .build(config)
+        .await
+        .expect("Failed to create pool");
+    let shared_pool = Arc::new(pool);
 
-    // // build our application with a route
-    // let app = Router::new()
-    //     // `GET /` goes to `root`
-    //     .route("/", get(get_devices))
-    //     .with_state(pool);
+    // CBOR API
+    let cbor_addr: SocketAddr = "0.0.0.0:53585".parse().unwrap();
+    let cbor_api_config = api::cbor::CborApiConfig {
+        listen_address: cbor_addr,
+        shared_pool: shared_pool.clone(),
+    };
+    let mut cbor_api = api::cbor::CborApi::new(cbor_api_config);
+    cbor_api.start().await;
 
-    // run our app with hyper
-    // let listener = tokio::net::TcpListener::bind("127.0.0.1:3000")
-    //     .await
-    //     .unwrap();
-    // info!("listening on {}", listener.local_addr().unwrap());
-    // axum::serve(listener, app).await.unwrap();
-
-    // let socket = UdpSocket::bind("0.0.0.0:53585").expect("Couldn't bind to address");
-    // println!("Listening on 0.0.0.0:53585");
-    let socket = UdpSocket::bind("192.0.2.2:53585").expect("Couldn't bind to address");
-    println!("Listening on 192.0.2.2:53585");
-
-    let mut buf = [0u8; 1024];
-
-    loop {
-        // Receive data
-        let (amt, src) = socket.recv_from(&mut buf).expect("Didn't receive data");
-        info!("Received from {}: {:?}", src, &buf[..amt]);
-        let cose_handler = cose::CoseHandler::new(vec![0u8; 16]); // Example key, replace with actual key bytes
-        let mut opcode: u16 = 0;
-        let mut device_id: u32 = 0;
-        let operation = cose_handler.decode_msg(&mut device_id, &mut opcode, &buf);
-        let operation_bytes: Vec<u8>;
-        match operation {
-            //Ok(op) => info!("Decoded operation: {:?}", hex::encode(op)),
-            Ok(op) => {
-                operation_bytes = op;
-
-                // Convert each byte to hex and join
-                let hex_string: String = operation_bytes
-                    .iter()
-                    .map(|b| format!("{:02X}", b)) // Uppercase hex, use {:02x} for lowercase
-                    .collect::<Vec<String>>()
-                    .join("");
-
-                info!("Decoded message (hex): {}", hex_string);
-            }
-
-            Err(e) => {
-                error!("Failed to decode message: {}", e);
-                continue;
-            }
-        }
-
-        let decode_res = operation::decode_get_parameter_request(&operation_bytes[..]);
-        let get_parameter_request: GetParameterRequest;
-        match decode_res {
-            Ok(request) => {
-                get_parameter_request = request;
-            }
-            Err(e) => {
-                error!("Failed to decode operation: {}", e);
-                continue;
-            }
-        }
-
-        info!(
-            "Received request for parameter {}",
-            get_parameter_request.parameter_id.unwrap()
-        );
-        let param_value: u64 = 42;
-        let get_parameter_response = GetParameterResponse {
-            parameter_id: get_parameter_request.parameter_id.unwrap(),
-            parameter_type: get_parameter_request.parameter_type.unwrap(),
-            parameter_value: param_value.to_be_bytes().to_vec(),
-        };
-
-        let encoding_res = operation::encode_get_parameter_response(&get_parameter_response);
-        let operation_buf: Vec<u8>;
-        match encoding_res {
-            Ok(encoded) => {
-                operation_buf = encoded;
-            }
-            Err(e) => {
-                error!("Failed to encode operation: {}", e);
-                continue;
-            }
-        }
-        info!("Encoded operation has length: {}", operation_buf.len());
-
-        let msg_encoding_res = cose_handler.encode_msg(
-            device_id,
-            operation::OperationType::GetParameterResponse as u16,
-            &operation_buf[..],
-        );
-        let response_buf: Vec<u8>;
-        match msg_encoding_res {
-            Ok(encoded) => {
-                response_buf = encoded;
-            }
-            Err(e) => {
-                error!("Failed to encode operation: {}", e);
-                continue;
-            }
-        }
-
-        info!("sending response of size: {}", response_buf.len());
-        info!("Content: {}", to_hex_upper(&response_buf[..]));
-
-        // Optional: send a response
-        socket
-            .send_to(&response_buf[..], src)
-            .expect("Failed to send response");
-    }
+    // REST API
+    let rest_addr: SocketAddr = "0.0.0.0:3000".parse().unwrap();
+    let rest_api_config = api::rest::RestApiConfig {
+        listen_address: rest_addr,
+        shared_pool: shared_pool.clone(),
+    };
+    let mut rest_api = api::rest::RestApi::new(rest_api_config);
+    rest_api.start_blocking().await;
+    cbor_api.shutdown().await;
 }
-
-fn to_hex_upper(bytes: &[u8]) -> String {
-    let mut s = String::with_capacity(bytes.len() * 2);
-    for b in bytes {
-        use std::fmt::Write as _;
-        write!(&mut s, "{:02X}", b).unwrap();
-    }
-    s
-}
-
-// struct DatabaseConnection(bb8::PooledConnection<'static, AsyncPgConnection>);
-
-// impl<S> FromRequestParts<S> for DatabaseConnection
-// where
-//     S: Send + Sync,
-//     Pool: FromRef<S>,
-// {
-//     type Rejection = (StatusCode, String);
-
-//     async fn from_request_parts(_parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
-//         let pool = Pool::from_ref(state);
-
-//         let conn = pool.get_owned().await.map_err(internal_error)?;
-
-//         Ok(Self(conn))
-//     }
-// }
-
-// #[axum::debug_handler]
-// async fn get_devices(
-//     State(pool): State<DbPool>,
-// ) -> Result<Json<Vec<Device>>, (axum::http::StatusCode, String)> {
-//     use schema::devices::dsl::*;
-
-//     let mut conn = pool.get_owned().await.map_err(internal_error)?;
-//     let result = devices
-//         .select(Device::as_select())
-//         .load(&mut conn)
-//         .await
-//         .map_err(internal_error)?;
-
-//     Ok(Json(result))
-// }
-
-// async fn create_user(
-//     // this argument tells axum to parse the request body
-//     // as JSON into a `CreateUser` type
-//     Json(payload): Json<CreateUser>,
-// ) -> impl IntoResponse {
-//     // insert your application logic here
-//     let user = User {
-//         id: 1337,
-//         username: payload.username,
-//     };
-
-//     // this will be converted into a JSON response
-//     // with a status code of `201 Created`
-//     (StatusCode::CREATED, Json(user))
-// }
-
-// // the input to our `create_user` handler
-// #[derive(Deserialize)]
-// struct CreateUser {
-//     username: String,
-// }
-
-// // the output to our `create_user` handler
-// #[derive(Serialize)]
-// struct User {
-//     id: u64,
-//     username: String,
-// }
-
-// fn internal_error<E>(err: E) -> (StatusCode, String)
-// where
-//     E: std::error::Error,
-// {
-//     (StatusCode::INTERNAL_SERVER_ERROR, err.to_string())
-// }
