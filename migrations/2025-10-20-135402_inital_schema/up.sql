@@ -11,6 +11,7 @@ CREATE TABLE device_type_parameter (
     device_type INT NOT NULL,
     key VARCHAR(100) NOT NULL,
     type parameter_type NOT NULL,
+    default_value BYTEA,
     FOREIGN KEY (device_type) REFERENCES device_type(id) ON DELETE RESTRICT
 );
 
@@ -35,6 +36,7 @@ CREATE TYPE device_status AS ENUM ('ACTIVE', 'INACTIVE', 'MAINTENANCE');
 
 CREATE TABLE device (
     id SERIAL PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
     type INT NOT NULL,
     firmware INT,
     desired_firmware INT NOT NULL,

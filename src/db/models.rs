@@ -15,7 +15,7 @@ pub enum CryptoAlgorithm {
     AsconAead128,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, DbEnum, serde::Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, DbEnum, serde::Serialize, serde::Deserialize)]
 #[ExistingTypePath = "crate::db::schema::sql_types::DeviceStatus"]
 #[DbValueStyle = "snake_case"]
 pub enum DeviceStatus {
@@ -67,9 +67,10 @@ pub struct Device {
     pub status: DeviceStatus,
 }
 
-#[derive(Debug, Clone, Insertable)]
+#[derive(Debug, Clone, Insertable, serde::Serialize, serde::Deserialize)]
 #[diesel(table_name = crate::db::schema::device)]
 pub struct NewDevice {
+    pub name: String,
     pub type_: i32,
     pub firmware: Option<i32>,
     pub desired_firmware: i32,
@@ -159,6 +160,7 @@ pub struct DeviceTypeParameter {
     pub device_type: i32, // FK -> device_type.id
     pub key: String,
     pub type_: ParameterType,
+    pub default_value: Option<Vec<u8>>, // Bytea
 }
 
 #[derive(Debug, Clone, Insertable)]

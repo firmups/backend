@@ -1,5 +1,7 @@
-use crate::db::models::{DeviceType, NewDeviceType};
-use crate::db::schema::device_type::dsl::device_type;
+use crate::db::models::{DeviceType, NewDevice, NewDeviceType};
+use crate::db::schema::device::dsl::device as device_table;
+use crate::db::schema::device_type::dsl::device_type as device_type_table;
+use crate::db::schema::device_type_firmware::dsl::device_type_firmware as device_type_firmware_table;
 use axum::extract::State;
 use axum::http::HeaderMap;
 use axum::http::HeaderValue;
@@ -9,6 +11,8 @@ use axum::response::IntoResponse;
 use axum::{Json, routing};
 use diesel::QueryDsl;
 use diesel::SelectableHelper;
+use diesel::dsl::count_star;
+use diesel::prelude::*;
 use diesel::result::DatabaseErrorKind;
 use diesel_async::RunQueryDsl;
 use log::debug;
@@ -33,9 +37,10 @@ impl RestApi {
     pub fn new(config: RestApiConfig) -> Self {
         let router = axum::Router::new()
             .route("/", axum::routing::get(welcome_page))
-            .route("/device", axum::routing::get(get_devices))
             .route("/device_type", axum::routing::post(create_device_type))
             .route("/device_type", axum::routing::get(get_device_types))
+            .route("/device", axum::routing::get(get_devices))
+            .route("/device", axum::routing::post(create_device))
             .with_state(config.shared_pool.clone());
         RestApi {
             config: config,
@@ -114,7 +119,7 @@ pub async fn create_device_type(
     };
 
     // Perform the insert and return the created row
-    let result: Result<DeviceType, diesel::result::Error> = diesel::insert_into(device_type)
+    let result: Result<DeviceType, diesel::result::Error> = diesel::insert_into(device_type_table)
         .values(&new_row)
         .returning(DeviceType::as_returning())
         .get_result(&mut conn)
@@ -166,7 +171,7 @@ async fn get_device_types(
         .get_owned()
         .await
         .map_err(internal_error)?;
-    let result = device_type
+    let result = device_type_table
         .select(DeviceType::as_select())
         .load(&mut conn)
         .await
@@ -194,6 +199,141 @@ async fn get_devices(
         .map_err(internal_error)?;
 
     Ok(Json(result))
+}
+
+#[axum::debug_handler]
+pub async fn create_device(
+    State(pool): State<Arc<DbPool>>,
+    Json(payload): Json<crate::db::models::NewDevice>,
+) -> impl IntoResponse {
+    // Basic validation
+    let name_trimmed = payload.name;
+    if name_trimmed.is_empty() {
+        return (StatusCode::BAD_REQUEST, "name cannot be empty").into_response();
+    }
+    if name_trimmed.len() > 100 {
+        return (StatusCode::BAD_REQUEST, "name too long (max 100)").into_response();
+    }
+
+    let mut conn = match pool.get().await {
+        Ok(c) => c,
+        Err(e) => {
+            return (
+                StatusCode::SERVICE_UNAVAILABLE,
+                format!("db pool error: {e}"),
+            )
+                .into_response();
+        }
+    };
+
+    let mut count: i64 = match device_type_table
+        .filter(crate::db::schema::device_type::dsl::id.eq(payload.type_))
+        .select(count_star())
+        .first(&mut conn)
+        .await
+    {
+        Ok(res) => res,
+        Err(e) => {
+            return (StatusCode::BAD_REQUEST, format!("db error: {}", e)).into_response();
+        }
+    };
+    if count == 0 {
+        return (StatusCode::BAD_REQUEST, "invalid device type").into_response();
+    }
+
+    if !payload.firmware.is_none() {
+        count = match device_type_firmware_table
+            .filter(crate::db::schema::device_type_firmware::dsl::device_type.eq(payload.type_))
+            .filter(
+                crate::db::schema::device_type_firmware::dsl::firmware
+                    .eq(payload.firmware.unwrap()),
+            )
+            .select(count_star())
+            .first(&mut conn)
+            .await
+        {
+            Ok(res) => res,
+            Err(e) => {
+                return (StatusCode::BAD_REQUEST, format!("db error: {}", e)).into_response();
+            }
+        };
+        if count == 0 {
+            return (StatusCode::BAD_REQUEST, "invalid firmware for device_type").into_response();
+        }
+    }
+
+    count = match device_type_firmware_table
+        .filter(crate::db::schema::device_type_firmware::dsl::device_type.eq(payload.type_))
+        .filter(crate::db::schema::device_type_firmware::dsl::firmware.eq(payload.desired_firmware))
+        .select(count_star())
+        .first(&mut conn)
+        .await
+    {
+        Ok(res) => res,
+        Err(e) => {
+            return (StatusCode::BAD_REQUEST, format!("db error: {}", e)).into_response();
+        }
+    };
+    if count == 0 {
+        return (
+            StatusCode::BAD_REQUEST,
+            "invalid desired_firmware for device_type",
+        )
+            .into_response();
+    }
+
+    // Build insertable struct (in case you trimmed or normalized)
+    let new_row = NewDeviceType {
+        name: name_trimmed.to_string(),
+    };
+
+    let new_row = NewDevice {
+        name: name_trimmed.to_string(),
+        type_: payload.type_,
+        firmware: payload.firmware,
+        desired_firmware: payload.desired_firmware,
+        status: payload.status,
+    };
+
+    // Perform the insert and return the created row
+    let result: Result<Device, diesel::result::Error> = diesel::insert_into(device_table)
+        .values(&new_row)
+        .returning(Device::as_returning())
+        .get_result(&mut conn)
+        .await;
+
+    match result {
+        Ok(created) => (
+            StatusCode::CREATED,
+            [(
+                axum::http::header::LOCATION,
+                HeaderValue::from_str(&format!("/device/{}", created.id)).unwrap(),
+            )],
+            Json(created),
+        )
+            .into_response(),
+        Err(diesel::result::Error::DatabaseError(kind, info)) => {
+            // Handle uniqueness violation nicely (if you have a unique index on name)
+            if kind == DatabaseErrorKind::UniqueViolation {
+                (
+                    StatusCode::CONFLICT,
+                    format!("device type '{}' already exists", name_trimmed),
+                )
+                    .into_response()
+            } else {
+                (
+                    StatusCode::BAD_REQUEST,
+                    format!("db error: {}", info.message()),
+                )
+                    .into_response()
+            }
+        }
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("insert failed: {e}"),
+        )
+            .into_response(),
+    }
 }
 
 fn internal_error<E>(err: E) -> (StatusCode, String)
