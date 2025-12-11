@@ -102,9 +102,14 @@ diesel::table! {
     firmware (id) {
         id -> Int4,
         #[max_length = 100]
+        name -> Varchar,
+        #[max_length = 100]
         version -> Varchar,
-        #[max_length = 255]
-        path -> Varchar,
+        #[max_length = 36]
+        file_id -> Varchar,
+        size -> Int8,
+        #[max_length = 64]
+        sha256 -> Varchar,
     }
 }
 

@@ -18,8 +18,11 @@ CREATE TABLE device_type_parameter (
 -- Firmware
 CREATE TABLE firmware (
     id SERIAL PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
     version VARCHAR(100) NOT NULL,
-    path VARCHAR(255) NOT NULL
+    file_id VARCHAR(36) NOT NULL,
+    size BIGINT NOT NULL,
+    sha256 VARCHAR(64) NOT NULL
 );
 
 -- Device Type Firmware (many-to-many)
@@ -27,8 +30,9 @@ CREATE TABLE device_type_firmware (
     id SERIAL PRIMARY KEY,
     device_type INT NOT NULL,
     firmware INT NOT NULL,
-    FOREIGN KEY (device_type) REFERENCES device_type(id) ON DELETE RESTRICT,
-    FOREIGN KEY (firmware) REFERENCES firmware(id) ON DELETE RESTRICT
+    FOREIGN KEY (device_type) REFERENCES device_type(id) ON DELETE CASCADE,
+    FOREIGN KEY (firmware) REFERENCES firmware(id) ON DELETE CASCADE,
+    CONSTRAINT device_type_firmware_unique UNIQUE (device_type, firmware)
 );
 
 -- Devices

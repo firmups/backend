@@ -134,7 +134,17 @@ pub struct NewDeviceType {
 }
 
 // device_type_firmware
-#[derive(Debug, Clone, Identifiable, Queryable, Selectable, Associations, AsChangeset)]
+#[derive(
+    Debug,
+    Clone,
+    Identifiable,
+    Queryable,
+    Selectable,
+    Associations,
+    AsChangeset,
+    serde::Serialize,
+    serde::Deserialize,
+)]
 #[diesel(table_name = crate::db::schema::device_type_firmware)]
 #[diesel(belongs_to(DeviceType, foreign_key = device_type))]
 #[diesel(belongs_to(Firmware, foreign_key = firmware))]
@@ -144,7 +154,7 @@ pub struct DeviceTypeFirmware {
     pub firmware: i32,    // FK -> firmware.id
 }
 
-#[derive(Debug, Clone, Insertable)]
+#[derive(Debug, Clone, Insertable, serde::Serialize, serde::Deserialize)]
 #[diesel(table_name = crate::db::schema::device_type_firmware)]
 pub struct NewDeviceTypeFirmware {
     pub device_type: i32,
@@ -172,19 +182,34 @@ pub struct NewDeviceTypeParameter {
 }
 
 // firmware
-#[derive(Debug, Clone, Identifiable, Queryable, Selectable, AsChangeset)]
+#[derive(
+    Debug,
+    Clone,
+    Identifiable,
+    Queryable,
+    Selectable,
+    AsChangeset,
+    serde::Serialize,
+    serde::Deserialize,
+)]
 #[diesel(table_name = crate::db::schema::firmware)]
 pub struct Firmware {
     pub id: i32,
+    pub name: String,
     pub version: String,
-    pub path: String,
+    pub file_id: String,
+    pub size: i64,
+    pub sha256: String,
 }
 
-#[derive(Debug, Clone, Insertable)]
+#[derive(Debug, Clone, Insertable, serde::Serialize, serde::Deserialize)]
 #[diesel(table_name = crate::db::schema::firmware)]
 pub struct NewFirmware {
+    pub name: String,
     pub version: String,
-    pub path: String,
+    pub file_id: String,
+    pub size: i64,
+    pub sha256: String,
 }
 
 // lightweight_key_details

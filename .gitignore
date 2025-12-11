@@ -26,3 +26,6 @@ target
 # Db files
 db/pg
 !db/docker-compose.yaml
+
+# Data
+data/
