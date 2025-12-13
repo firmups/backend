@@ -50,6 +50,28 @@ CREATE TABLE device (
     FOREIGN KEY (desired_firmware) REFERENCES firmware(id) ON DELETE RESTRICT
 );
 
+-- -- Device Errors
+-- CREATE TABLE device_error (
+--     id             SERIAL PRIMARY KEY,
+--     device_id      BIGINT NOT NULL REFERENCES device(id) ON DELETE CASCADE,
+--     error_code_id  BIGINT NOT NULL REFERENCES error_code(id) ON DELETE RESTRICT,
+--     occurred_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+--     cleared_at     TIMESTAMPTZ,
+--     details        JSONB,
+-- );
+
+-- CREATE TYPE error_severity AS ENUM ('CRITICAL', 'MAJOR', 'MINOR');
+
+-- CREATE TABLE error_code (
+--     id                SERIAL PRIMARY KEY,
+--     code              VARCHAR(64) NOT NULL,
+--     title             VARCHAR(200) NOT NULL,
+--     description       TEXT,
+--     severity          error_severity NOT NULL,
+--     device_type       INT REFERENCES device_type(id) ON DELETE CASCADE, -- NULL for system codes
+--     CONSTRAINT uq_error_code_namespace UNIQUE (device_type, code),
+-- );
+
 -- Device Parameters
 CREATE TABLE device_parameter (
     id SERIAL PRIMARY KEY,

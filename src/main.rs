@@ -5,6 +5,8 @@ use diesel_async::{
 use dotenvy::dotenv;
 use log::info;
 use std::{net::SocketAddr, path::PathBuf, sync::Arc};
+use tracing_appender::rolling::{RollingFileAppender, Rotation};
+use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt};
 
 mod api;
 mod codec;
@@ -16,8 +18,6 @@ type DbPool = bb8::Pool<AsyncPgConnection>;
 #[tokio::main]
 async fn main() {
     dotenv().ok();
-    // initialize logging
-    env_logger::init();
 
     // DB Pool setup
     let db_url = std::env::var("FIRMUPS_DATABASE_URL").expect("FIRMUPS_DATABASE_URL environment variable is missing. Please set it before running the app.");
@@ -27,6 +27,39 @@ async fn main() {
         .await
         .expect("Failed to create pool");
     let shared_pool = Arc::new(pool);
+
+    // initialize logging
+    let data_path_env = std::env::var("FIRMUPS_DATA_PATH");
+    let data_path: PathBuf = match data_path_env {
+        Ok(path) => PathBuf::from(path),
+        Err(_) => {
+            println!("FIRMUPS_DATA_PATH not set using default: ./data/");
+            PathBuf::from("./data")
+        }
+    };
+
+    let log_path_env = std::env::var("FIRMUPS_LOG_PATH");
+    let log_path: PathBuf = match log_path_env {
+        Ok(path) => PathBuf::from(path),
+        Err(_) => {
+            println!("FIRMUPS_LOG_PATH not set using default: ${{FIRMUPS_DATA_PATH}}/logs");
+            data_path.join("logs")
+        }
+    };
+
+    let file_appender = RollingFileAppender::builder()
+        .rotation(Rotation::DAILY)
+        .filename_prefix("firmups")
+        .filename_suffix("log")
+        .build(log_path)
+        .expect("create rolling file");
+
+    tracing_subscriber::registry()
+        .with(fmt::layer().with_writer(std::io::stderr)) // console
+        .with(fmt::layer().with_ansi(false).with_writer(file_appender)) // file
+        .init();
+
+    info!("Logging initialized.");
 
     // CBOR API
     let cbor_addr: SocketAddr = "0.0.0.0:53585".parse().unwrap();
@@ -39,15 +72,6 @@ async fn main() {
 
     // REST API
     let rest_addr: SocketAddr = "0.0.0.0:3000".parse().unwrap();
-
-    let data_path_env = std::env::var("FIRMUPS_DATA_PATH");
-    let data_path: PathBuf = match data_path_env {
-        Ok(path) => PathBuf::from(path),
-        Err(_) => {
-            info!("FIRMUPS_DATA_PATH not set using default: ./data/");
-            PathBuf::from("./data")
-        }
-    };
 
     let max_firmware_size_env = std::env::var("FIRMUPS_FIRMWARE_MAX_SIZE_BYTES");
     let max_firmware_size: usize = match max_firmware_size_env {
