@@ -19,9 +19,12 @@ pub enum CryptoAlgorithm {
 #[ExistingTypePath = "crate::db::schema::sql_types::DeviceStatus"]
 #[DbValueStyle = "snake_case"]
 pub enum DeviceStatus {
-    ACTIVE,
-    INACTIVE,
-    MAINTENANCE,
+    #[db_rename = "ACTIVE"]
+    ACTIVE = 0,
+    #[db_rename = "INACTIVE"]
+    INACTIVE = 1,
+    #[db_rename = "MAINTENANCE"]
+    MAINTENANCE = 2,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, DbEnum)]
@@ -57,7 +60,16 @@ pub enum ParameterType {
 // -----------------------------
 
 // device
-#[derive(Debug, Clone, Identifiable, Queryable, Selectable, AsChangeset, serde::Serialize)]
+#[derive(
+    Debug,
+    Clone,
+    Identifiable,
+    Queryable,
+    Selectable,
+    AsChangeset,
+    serde::Serialize,
+    serde::Deserialize,
+)]
 #[diesel(table_name = crate::db::schema::device)]
 pub struct Device {
     pub id: i32,

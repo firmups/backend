@@ -6,8 +6,34 @@ pub enum OperationType {
     GetParameterResponse = 2,
     SetParameterRequest = 3,
     SetParameterResponse = 4,
-    GetFirmwareRequest = 5,
-    GetFirmwareResponse = 6,
+    GetDeviceInfoRequest = 5,
+    GetDeviceInfoResponse = 6,
+    SetDeviceInfoRequest = 7,
+    SetDeviceInfoResponse = 8,
+    GetFirmwareRequest = 9,
+    GetFirmwareResponse = 10,
+}
+
+impl From<u16> for OperationType {
+    fn from(value: u16) -> Self {
+        match value {
+            1 => OperationType::GetParameterRequest,
+            2 => OperationType::GetParameterResponse,
+            3 => OperationType::SetParameterRequest,
+            4 => OperationType::SetParameterResponse,
+            5 => OperationType::GetDeviceInfoRequest,
+            6 => OperationType::GetDeviceInfoResponse,
+            7 => OperationType::GetFirmwareRequest,
+            8 => OperationType::GetFirmwareResponse,
+            _ => OperationType::Invalid,
+        }
+    }
+}
+
+impl From<OperationType> for u16 {
+    fn from(op: OperationType) -> Self {
+        op as u16
+    }
 }
 
 pub enum ParameterType {
@@ -28,6 +54,37 @@ pub struct GetParameterResponse {
     pub parameter_id: u32,
     pub parameter_type: ParameterType,
     pub parameter_value: Vec<u8>,
+}
+
+pub struct GetDeviceInfoResponse {
+    pub firmware: u32,
+    pub desired_firmware: u32,
+    pub status: u8,
+}
+
+pub struct SetDeviceInfoRequest {
+    pub firmware: Option<u32>,
+    pub desired_firmware: Option<u32>,
+    pub status: Option<u8>,
+}
+
+pub struct SetDeviceInfoResponse {
+    pub firmware: u32,
+    pub desired_firmware: u32,
+    pub status: u8,
+}
+
+pub struct GetFirmwareRequest {
+    pub firmware: Option<u32>,
+    pub offset: Option<u32>,
+    pub length: Option<u32>,
+}
+
+pub struct GetFirmwareResponse {
+    pub firmware: u32,
+    pub offset: u32,
+    pub length: u32,
+    pub data: Vec<u8>,
 }
 
 pub fn decode_get_parameter_request(
@@ -116,6 +173,103 @@ pub fn encode_get_parameter_response(
             enc.bytes(&parameter_response.parameter_value);
         }
     }
+
+    let pos = cursor.position() as usize;
+    let inner = cursor.into_inner();
+
+    Ok(inner[..pos].to_vec())
+}
+
+pub fn encode_get_device_info_response(
+    device_info_response: &GetDeviceInfoResponse,
+) -> Result<Vec<u8>, minicbor::decode::Error> {
+    let mut cursor: minicbor::encode::write::Cursor<[u8; 1024]> =
+        minicbor::encode::write::Cursor::new([0u8; 1024]);
+    let mut enc = minicbor::Encoder::new(&mut cursor);
+    let _ = enc.array(3);
+    let _ = enc.u32(device_info_response.firmware);
+    let _ = enc.u32(device_info_response.desired_firmware);
+    let _ = enc.u8(device_info_response.status);
+
+    let pos = cursor.position() as usize;
+    let inner = cursor.into_inner();
+
+    Ok(inner[..pos].to_vec())
+}
+
+pub fn decode_set_device_info_request(
+    operation: &[u8],
+) -> Result<SetDeviceInfoRequest, minicbor::decode::Error> {
+    let mut decoder = minicbor::Decoder::new(operation);
+    let mut set_device_info_request = SetDeviceInfoRequest {
+        firmware: None,
+        desired_firmware: None,
+        status: None,
+    };
+    info!("Starting operation decoding");
+    if decoder.array()? != Some(3) {
+        return Err(minicbor::decode::Error::message(
+            "Expected cose array of length 3",
+        ));
+    }
+    set_device_info_request.firmware = Some(decoder.u32()?);
+    set_device_info_request.desired_firmware = Some(decoder.u32()?);
+    set_device_info_request.status = Some(decoder.u8()?);
+
+    Ok(set_device_info_request)
+}
+
+pub fn encode_set_device_info_response(
+    device_info_response: &SetDeviceInfoResponse,
+) -> Result<Vec<u8>, minicbor::decode::Error> {
+    // ToDO: implement
+    let mut cursor: minicbor::encode::write::Cursor<[u8; 1024]> =
+        minicbor::encode::write::Cursor::new([0u8; 1024]);
+    let mut enc = minicbor::Encoder::new(&mut cursor);
+    let _ = enc.array(3);
+    let _ = enc.u32(device_info_response.firmware);
+    let _ = enc.u32(device_info_response.desired_firmware);
+    let _ = enc.u8(device_info_response.status);
+
+    let pos = cursor.position() as usize;
+    let inner = cursor.into_inner();
+
+    Ok(inner[..pos].to_vec())
+}
+
+pub fn decode_get_firmware_request(
+    operation: &[u8],
+) -> Result<GetFirmwareRequest, minicbor::decode::Error> {
+    let mut decoder = minicbor::Decoder::new(operation);
+    let mut firmware_request = GetFirmwareRequest {
+        firmware: None,
+        offset: None,
+        length: None,
+    };
+    info!("Starting operation decoding");
+    if decoder.array()? != Some(3) {
+        return Err(minicbor::decode::Error::message(
+            "Expected cose array of length 3",
+        ));
+    }
+    firmware_request.firmware = Some(decoder.u32()?);
+    firmware_request.offset = Some(decoder.u32()?);
+    firmware_request.length = Some(decoder.u32()?);
+
+    Ok(firmware_request)
+}
+
+pub fn encode_get_firmware_response(
+    firmware_response: &GetFirmwareResponse,
+) -> Result<Vec<u8>, minicbor::decode::Error> {
+    let mut cursor: minicbor::encode::write::Cursor<[u8; 1024]> =
+        minicbor::encode::write::Cursor::new([0u8; 1024]);
+    let mut enc = minicbor::Encoder::new(&mut cursor);
+    let _ = enc.array(4);
+    let _ = enc.u32(firmware_response.firmware);
+    let _ = enc.u32(firmware_response.offset);
+    let _ = enc.u32(firmware_response.length);
+    let _ = enc.bytes(&firmware_response.data);
 
     let pos = cursor.position() as usize;
     let inner = cursor.into_inner();

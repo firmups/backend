@@ -6,7 +6,7 @@ use dotenvy::dotenv;
 use log::info;
 use std::{net::SocketAddr, path::PathBuf, sync::Arc};
 use tracing_appender::rolling::{RollingFileAppender, Rotation};
-use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt};
+use tracing_subscriber::{EnvFilter, fmt, layer::SubscriberExt, util::SubscriberInitExt};
 
 mod api;
 mod codec;
@@ -55,6 +55,7 @@ async fn main() {
         .expect("create rolling file");
 
     tracing_subscriber::registry()
+        .with(EnvFilter::from_default_env())
         .with(fmt::layer().with_writer(std::io::stderr)) // console
         .with(fmt::layer().with_ansi(false).with_writer(file_appender)) // file
         .init();

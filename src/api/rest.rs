@@ -1,6 +1,6 @@
 use crate::db::models::{
-    DeviceType, DeviceTypeFirmware, Firmware, NewDevice, NewDeviceType, NewDeviceTypeFirmware,
-    NewFirmware,
+    Device, DeviceType, DeviceTypeFirmware, Firmware, NewDevice, NewDeviceType,
+    NewDeviceTypeFirmware, NewFirmware,
 };
 use axum::body::Body;
 use axum::extract::{Multipart, Path, State};
@@ -26,8 +26,6 @@ use tokio::net::TcpListener;
 use tokio::signal;
 use tokio_util::io::ReaderStream;
 use uuid::Uuid;
-
-use crate::{DbPool, db::models::Device};
 
 #[derive(Clone)]
 pub struct RestApiConfig {
@@ -388,11 +386,6 @@ pub async fn create_device(
         )
             .into_response();
     }
-
-    // Build insertable struct (in case you trimmed or normalized)
-    let new_row = NewDeviceType {
-        name: name_trimmed.to_string(),
-    };
 
     let new_row = NewDevice {
         name: name_trimmed.to_string(),
