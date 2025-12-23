@@ -23,8 +23,10 @@ impl From<u16> for OperationType {
             4 => OperationType::SetParameterResponse,
             5 => OperationType::GetDeviceInfoRequest,
             6 => OperationType::GetDeviceInfoResponse,
-            7 => OperationType::GetFirmwareRequest,
-            8 => OperationType::GetFirmwareResponse,
+            7 => OperationType::SetDeviceInfoRequest,
+            8 => OperationType::SetDeviceInfoResponse,
+            9 => OperationType::GetFirmwareRequest,
+            10 => OperationType::GetFirmwareResponse,
             _ => OperationType::Invalid,
         }
     }
@@ -54,6 +56,10 @@ pub struct GetParameterResponse {
     pub parameter_id: u32,
     pub parameter_type: ParameterType,
     pub parameter_value: Vec<u8>,
+}
+
+pub struct GetDeviceInfoRequest {
+    pub device_id: Option<u32>,
 }
 
 pub struct GetDeviceInfoResponse {
@@ -178,6 +184,22 @@ pub fn encode_get_parameter_response(
     let inner = cursor.into_inner();
 
     Ok(inner[..pos].to_vec())
+}
+
+pub fn decode_get_device_info_request(
+    operation: &[u8],
+) -> Result<GetDeviceInfoRequest, minicbor::decode::Error> {
+    let mut decoder = minicbor::Decoder::new(operation);
+    let mut parameter_request = GetDeviceInfoRequest { device_id: None };
+    info!("Starting operation decoding");
+    if decoder.array()? != Some(1) {
+        return Err(minicbor::decode::Error::message(
+            "Expected cose array of length 1",
+        ));
+    }
+    parameter_request.device_id = Some(decoder.u32()?);
+
+    Ok(parameter_request)
 }
 
 pub fn encode_get_device_info_response(

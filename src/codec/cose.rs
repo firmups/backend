@@ -1,5 +1,4 @@
-use log::debug;
-use log::info;
+use log::{debug, error, info};
 use minicbor::Decoder;
 use minicbor::Encoder;
 use minicbor::encode::write::Cursor;

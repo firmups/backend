@@ -67,6 +67,7 @@ async fn main() {
     let cbor_api_config = api::cbor::CborApiConfig {
         listen_address: cbor_addr,
         shared_pool: shared_pool.clone(),
+        data_storage_location: data_path.clone(),
     };
     let mut cbor_api = api::cbor::CborApi::new(cbor_api_config);
     cbor_api.start().await;
@@ -92,7 +93,7 @@ async fn main() {
     let rest_api_config = api::rest::RestApiConfig {
         listen_address: rest_addr,
         shared_pool: shared_pool.clone(),
-        data_storage_location: data_path,
+        data_storage_location: data_path.clone(),
         max_firmware_size: max_firmware_size,
     };
     let mut rest_api = api::rest::RestApi::new(rest_api_config);
