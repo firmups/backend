@@ -73,8 +73,9 @@ pub enum ParameterType {
 #[diesel(table_name = crate::db::schema::device)]
 pub struct Device {
     pub id: i32,
-    pub type_: i32,            // FK -> device_type.id
-    pub firmware: Option<i32>, // FK -> firmware.id (nullable)
+    pub name: String,
+    pub type_: i32,
+    pub firmware: Option<i32>,
     pub desired_firmware: i32,
     pub status: DeviceStatus,
 }
@@ -95,10 +96,10 @@ pub struct NewDevice {
 #[diesel(belongs_to(Device, foreign_key = device))]
 pub struct DeviceKey {
     pub id: i32,
-    pub device: i32, // FK -> device.id
+    pub device: i32,
     pub key_type: KeyType,
     pub status: KeyStatus,
-    pub key_details_id: i32, // points to either lightweight/tls detail row (polymorphic usage)
+    pub key_details_id: i32,
 }
 
 #[derive(Debug, Clone, Insertable)]
@@ -162,8 +163,8 @@ pub struct NewDeviceType {
 #[diesel(belongs_to(Firmware, foreign_key = firmware))]
 pub struct DeviceTypeFirmware {
     pub id: i32,
-    pub device_type: i32, // FK -> device_type.id
-    pub firmware: i32,    // FK -> firmware.id
+    pub device_type: i32,
+    pub firmware: i32,
 }
 
 #[derive(Debug, Clone, Insertable, serde::Serialize, serde::Deserialize)]

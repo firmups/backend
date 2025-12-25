@@ -22,7 +22,8 @@ CREATE TABLE firmware (
     version VARCHAR(100) NOT NULL,
     file_id VARCHAR(36) NOT NULL,
     size BIGINT NOT NULL,
-    sha256 VARCHAR(64) NOT NULL
+    sha256 VARCHAR(64) NOT NULL,
+    CONSTRAINT device_type_firmware_unique UNIQUE (name, version)
 );
 
 -- Device Type Firmware (many-to-many)
@@ -32,7 +33,7 @@ CREATE TABLE device_type_firmware (
     firmware INT NOT NULL,
     FOREIGN KEY (device_type) REFERENCES device_type(id) ON DELETE CASCADE,
     FOREIGN KEY (firmware) REFERENCES firmware(id) ON DELETE CASCADE,
-    CONSTRAINT device_type_firmware_unique UNIQUE (device_type, firmware)
+    CONSTRAINT device_type_firmware_unique_pair UNIQUE (device_type, firmware)
 );
 
 -- Devices
@@ -45,9 +46,17 @@ CREATE TABLE device (
     firmware INT,
     desired_firmware INT NOT NULL,
     status device_status NOT NULL,
-    FOREIGN KEY (type) REFERENCES device_type(id) ON DELETE RESTRICT,
-    FOREIGN KEY (firmware) REFERENCES firmware(id) ON DELETE RESTRICT,
-    FOREIGN KEY (desired_firmware) REFERENCES firmware(id) ON DELETE RESTRICT
+    CONSTRAINT fk_device_type FOREIGN KEY (type) REFERENCES device_type(id) ON DELETE RESTRICT,
+    CONSTRAINT fk_firmware FOREIGN KEY (firmware) REFERENCES firmware(id) ON DELETE RESTRICT,
+    CONSTRAINT fk_desired_firmware FOREIGN KEY (desired_firmware) REFERENCES firmware(id) ON DELETE RESTRICT,
+    CONSTRAINT fk_device_type_current
+        FOREIGN KEY (type, firmware)
+        REFERENCES device_type_firmware (device_type, firmware)
+        ON UPDATE CASCADE ON DELETE RESTRICT,
+    CONSTRAINT fk_device_type_desired
+        FOREIGN KEY (type, desired_firmware)
+        REFERENCES device_type_firmware (device_type, firmware)
+        ON UPDATE CASCADE ON DELETE RESTRICT
 );
 
 -- -- Device Errors
