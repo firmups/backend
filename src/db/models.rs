@@ -90,6 +90,16 @@ pub struct NewDevice {
     pub status: DeviceStatus,
 }
 
+#[derive(Debug, Clone, AsChangeset, serde::Serialize, serde::Deserialize)]
+#[diesel(table_name = crate::db::schema::device)]
+pub struct UpdateDevice {
+    pub name: Option<String>,
+    pub type_: Option<i32>,
+    pub firmware: Option<i32>,
+    pub desired_firmware: Option<i32>,
+    pub status: Option<DeviceStatus>,
+}
+
 // device_key
 #[derive(Debug, Clone, Identifiable, Queryable, Selectable, Associations, AsChangeset)]
 #[diesel(table_name = crate::db::schema::device_key)]
@@ -144,6 +154,12 @@ pub struct DeviceType {
 #[diesel(table_name = crate::db::schema::device_type)]
 pub struct NewDeviceType {
     pub name: String,
+}
+
+#[derive(Debug, Clone, AsChangeset, serde::Serialize, serde::Deserialize)]
+#[diesel(table_name = crate::db::schema::device_type)]
+pub struct UpdateDeviceType {
+    pub name: Option<String>,
 }
 
 // device_type_firmware

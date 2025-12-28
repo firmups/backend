@@ -76,11 +76,16 @@ impl RestApi {
             )
             .route(
                 "/device_type/{id}",
+                axum::routing::patch(device_type::update_device_type),
+            )
+            .route(
+                "/device_type/{id}",
                 axum::routing::delete(device_type::delete_device_type),
             )
             .route("/device", axum::routing::get(device::list_devices))
             .route("/device", axum::routing::post(device::create_device))
             .route("/device/{id}", axum::routing::get(device::get_device))
+            .route("/device/{id}", axum::routing::patch(device::update_device))
             .route("/device/{id}", axum::routing::delete(device::delete_device))
             .route("/firmware", axum::routing::get(firmware::list_firmwares))
             .route(

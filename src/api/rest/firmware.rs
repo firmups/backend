@@ -125,7 +125,7 @@ pub async fn create_firmware(
     let in_sha256 = {
         let mut hasher = Sha256::new();
         hasher.update(&file);
-        Some(format!("{:x}", hasher.finalize()))
+        format!("{:x}", hasher.finalize())
     };
 
     let new_firmware = NewFirmware {
@@ -133,7 +133,7 @@ pub async fn create_firmware(
         version: in_version,
         file_id: Uuid::new_v4().to_string(),
         size: in_size,
-        sha256: in_sha256.unwrap(),
+        sha256: in_sha256,
     };
 
     let safe_name = format!("{}.bin", new_firmware.file_id);
@@ -164,6 +164,7 @@ pub async fn create_firmware(
         Ok(record) => return Ok((StatusCode::CREATED, axum::Json(record))),
         Err(diesel::result::Error::DatabaseError(kind, info)) => {
             if kind == DatabaseErrorKind::UniqueViolation {
+                let _ = fs::remove_file(&path).await;
                 return Err(client_error(
                     StatusCode::CONFLICT,
                     format!(
@@ -172,6 +173,7 @@ pub async fn create_firmware(
                     ),
                 ));
             } else {
+                let _ = fs::remove_file(&path).await;
                 let error = diesel::result::Error::DatabaseError(kind, info);
                 return Err(internal_error(error));
             }
@@ -182,6 +184,183 @@ pub async fn create_firmware(
         }
     }
 }
+
+// #[axum::debug_handler]
+// pub async fn update_firmware(
+//     State(api_config): State<rest::RestApiConfig>,
+//     Path(path_id): Path<i32>,
+//     mut multipart: Multipart,
+// ) -> Result<(StatusCode, Json<Firmware>), rest::ApiError> {
+//     use crate::db::schema::firmware::dsl::*;
+
+//     let mut in_name: Option<String> = None;
+//     let mut in_version: Option<String> = None;
+//     let mut in_file_bytes: Option<Vec<u8>> = None;
+
+//     while let Some(field) = multipart.next_field().await.unwrap_or(None) {
+//         let field_name = field.name().unwrap_or("").to_string();
+//         match field_name.as_str() {
+//             "name" => {
+//                 in_name = match field.text().await {
+//                     Ok(opt) => Some(opt),
+//                     Err(_) => None,
+//                 };
+//             }
+//             "version" => {
+//                 in_version = match field.text().await {
+//                     Ok(opt) => Some(opt),
+//                     Err(_) => None,
+//                 };
+//             }
+//             "file" => {
+//                 in_file_bytes = match field.bytes().await {
+//                     Ok(opt) => Some(opt.to_vec()),
+//                     Err(_) => None,
+//                 };
+//             }
+//             _ => {}
+//         }
+//     }
+
+//     // Basic validation
+//     if in_name.is_some() {
+//         if in_name.clone().unwrap().len() > 100 {
+//             return Err(rest::client_error(
+//                 StatusCode::BAD_REQUEST,
+//                 "name too long (max 100)".to_string(),
+//             ));
+//         }
+//     };
+
+//     if in_version.is_some() {
+//         if in_version.clone().unwrap().len() > 100 {
+//             return Err(rest::client_error(
+//                 StatusCode::BAD_REQUEST,
+//                 "version too long (max 100)".to_string(),
+//             ));
+//         }
+//     };
+
+//     let mut updated_firmware = UpdateFirmware {
+//         name: in_name,
+//         version: in_version,
+//         file_id: None,
+//         size: None,
+//         sha256: None,
+//     };
+
+//     let mut base_path = api_config.data_storage_location;
+//     base_path.push("firmware");
+//     let mut new_path: Option<PathBuf> = None;
+//     if in_file_bytes.is_some() {
+//         let file = in_file_bytes.unwrap();
+//         let in_size = file.len() as i64;
+//         let in_sha256 = {
+//             let mut hasher = Sha256::new();
+//             hasher.update(&file);
+//             format!("{:x}", hasher.finalize())
+//         };
+
+//         updated_firmware.file_id = Some(Uuid::new_v4().to_string());
+//         updated_firmware.size = Some(in_size);
+//         updated_firmware.sha256 = Some(in_sha256);
+
+//         let safe_name = format!("{}.bin", updated_firmware.file_id.clone().unwrap());
+//         fs::create_dir_all(&base_path)
+//             .await
+//             .map_err(rest::internal_error)?;
+//         let mut path = base_path.clone();
+//         path.push(&safe_name);
+//         fs::write(&path, &file)
+//             .await
+//             .map_err(rest::internal_error)?;
+//         new_path = Some(path);
+//     };
+
+//     let mut conn = match api_config.shared_pool.get().await {
+//         Ok(c) => c,
+//         Err(e) => {
+//             if new_path.is_some() {
+//                 let _ = fs::remove_file(&new_path.unwrap()).await;
+//             }
+//             return Err(internal_error(e));
+//         }
+//     };
+
+//     let changedset = updated_firmware.clone();
+//     let old_base = base_path.clone();
+//     let tx_result: Result<(Firmware, Option<PathBuf>), diesel::result::Error> = conn
+//         .transaction::<(Firmware, Option<PathBuf>), diesel::result::Error, _>(|mut conn| {
+//             Box::pin(async move {
+//                 let mut old_path: Option<PathBuf> = None;
+
+//                 if changedset.file_id.is_some() {
+//                     let old: Firmware = diesel::QueryDsl::for_update(
+//                         firmware
+//                             .select(Firmware::as_select())
+//                             .filter(id.eq(path_id)),
+//                     )
+//                     .first(&mut conn)
+//                     .await?;
+
+//                     let old_safe_name = format!("{}.bin", old.file_id);
+//                     let mut temp_path = old_base;
+//                     temp_path.push(&old_safe_name);
+//                     old_path = Some(temp_path);
+//                 }
+
+//                 let new_firmware: Firmware = diesel::update(firmware.find(path_id))
+//                     .set(&changedset)
+//                     .returning(Firmware::as_returning())
+//                     .get_result(&mut conn)
+//                     .await?;
+
+//                 Ok((new_firmware, old_path))
+//             })
+//         })
+//         .await;
+//     match tx_result {
+//         Ok((new_fw, old_path)) => {
+//             if let Some(p) = old_path {
+//                 let _ = fs::remove_file(&p).await; // best-effort
+//             }
+//             return Ok((StatusCode::OK, Json(new_fw)));
+//         }
+//         Err(diesel::result::Error::NotFound) => {
+//             if new_path.is_some() {
+//                 let _ = fs::remove_file(&new_path.unwrap()).await;
+//             }
+//             return Err(rest::client_error(
+//                 axum::http::StatusCode::NOT_FOUND,
+//                 format!("firmware {} not found", path_id),
+//             ));
+//         }
+//         Err(diesel::result::Error::DatabaseError(kind, info)) => {
+//             // Handle uniqueness violation nicely (if you have a unique index on name)
+//             if kind == DatabaseErrorKind::UniqueViolation {
+//                 if new_path.is_some() {
+//                     let _ = fs::remove_file(&new_path.unwrap()).await;
+//                 }
+//                 return Err(client_error(
+//                     StatusCode::CONFLICT,
+//                     "firmware with this name and version already exists".to_string(),
+//                 ));
+//             } else {
+//                 if new_path.is_some() {
+//                     let _ = fs::remove_file(&new_path.unwrap()).await;
+//                 }
+//                 let error = diesel::result::Error::DatabaseError(kind, info);
+//                 return Err(internal_error(error));
+//             }
+//         }
+//         Err(e) => {
+//             if new_path.is_some() {
+//                 let _ = fs::remove_file(&new_path.unwrap()).await;
+//             }
+//             return Err(internal_error(e));
+//         }
+//     };
+// }
 
 #[axum::debug_handler]
 pub async fn get_firmware(

@@ -117,6 +117,56 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/InternalError"
+    patch:
+      tags:
+        - DeviceType
+      security:
+        - api_key: []
+      summary: Update an existing device type
+      operationId: UpdateDeviceType
+      parameters:
+        - name: id
+          in: path
+          description: ID of the DeviceType to be updated
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateDeviceType'
+      responses:
+        '200':
+          description: Device type updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeviceType'
+        '400':
+          description: Invalid name provided
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        '404':
+          description: Device type not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Device type already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        '500':
+          description: Internal error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InternalError"
     delete:
       tags:
         - DeviceType
@@ -238,6 +288,56 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InternalError"
+    patch:
+      tags:
+        - Device
+      security:
+        - api_key: []
+      summary: Update an existing device
+      operationId: updateDevice
+      parameters:
+        - name: id
+          in: path
+          description: ID of the Device to be updated
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateDevice'
+      responses:
+        '200':
+          description: Device updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Device'
+        '400':
+          description: Invalid input data provided
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        '404':
+          description: Device not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Device already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
         '500':
           description: Internal error
           content:
@@ -643,6 +743,13 @@ components:
       properties:
         name:
           type: string
+      required:
+        - name
+    UpdateDeviceType:
+      type: object
+      properties:
+        name:
+          type: string
     DeviceType:
       type: object
       properties:
@@ -650,10 +757,33 @@ components:
           type: integer
         name:
           type: string
+      required:
+        - id
+        - name
     DeviceStatus:
       type: string
       enum: ["ACTIVE", "INACTIVE", "MAINTENANCE"]
     NewDevice:
+      type: object
+      properties:
+        name:
+          type: string
+        type_:
+          description: Device type id
+          type: integer
+        firmware:
+          type: integer
+        desired_firmware:
+          type: integer
+        status:
+          $ref: '#/components/schemas/DeviceStatus'
+      required:
+        - name
+        - type_
+        - firmware
+        - desired_firmware
+        - status
+    UpdateDevice:
       type: object
       properties:
         name:
@@ -683,6 +813,13 @@ components:
           type: integer
         status:
           $ref: '#/components/schemas/DeviceStatus'
+      required:
+        - id
+        - name
+        - type_
+        - firmware
+        - desired_firmware
+        - status
     NewFirmware:
       type: object
       properties:
@@ -712,6 +849,12 @@ components:
           type: string
         sha256:
           type: string
+      required:
+        - name
+        - version
+        - file_id
+        - size
+        - sha256
     NewDeviceTypeFirmware:
       type: object
       properties:
@@ -721,6 +864,9 @@ components:
         firmware:
           description: Id of the firmware to link
           type: integer
+      required:
+        - device_type
+        - firmware
     DeviceTypeFirmware:
       type: object
       properties:

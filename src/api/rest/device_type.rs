@@ -1,14 +1,15 @@
 use crate::api::rest::{self, client_error, internal_error};
-use crate::db::models::{DeviceType, NewDeviceType};
+use crate::db::models::{DeviceType, NewDeviceType, UpdateDeviceType};
 use axum::Json;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use diesel::ExpressionMethods;
 use diesel::SelectableHelper;
-use diesel::query_dsl::methods::{FilterDsl, SelectDsl};
+use diesel::query_dsl::methods::{FilterDsl, FindDsl, SelectDsl};
 use diesel::result::DatabaseErrorKind;
 use diesel_async::RunQueryDsl;
 use log::debug;
+use sha2::digest::Update;
 
 #[axum::debug_handler]
 pub async fn create_device_type(
@@ -18,12 +19,6 @@ pub async fn create_device_type(
     use crate::db::schema::device_type::dsl::*;
     // Basic validation
     let name_trimmed = payload.name.trim();
-    if name_trimmed.is_empty() {
-        return Err(client_error(
-            StatusCode::BAD_REQUEST,
-            "name cannot be empty".to_string(),
-        ));
-    }
     if name_trimmed.len() > 100 {
         return Err(client_error(
             StatusCode::BAD_REQUEST,
@@ -122,6 +117,61 @@ pub async fn get_device_type(
     };
 
     Ok(Json(result))
+}
+
+#[axum::debug_handler]
+pub async fn update_device_type(
+    State(api_config): State<rest::RestApiConfig>,
+    Path(path_id): Path<i32>,
+    Json(payload): Json<UpdateDeviceType>,
+) -> Result<(StatusCode, Json<DeviceType>), rest::ApiError> {
+    use crate::db::schema::device_type::dsl::*;
+    // Basic validation
+    if payload.name.is_some() {
+        if payload.name.clone().unwrap().len() > 100 {
+            return Err(client_error(
+                StatusCode::BAD_REQUEST,
+                "name too long (max 100)".to_string(),
+            ));
+        }
+    };
+
+    // Insert
+    let mut conn = match api_config.shared_pool.get().await {
+        Ok(c) => c,
+        Err(e) => {
+            return Err(internal_error(e));
+        }
+    };
+
+    let result: Result<DeviceType, diesel::result::Error> =
+        diesel::update(device_type.find(path_id))
+            .set(&payload)
+            .returning(DeviceType::as_returning())
+            .get_result(&mut conn)
+            .await;
+    match result {
+        Ok(created) => return Ok((StatusCode::CREATED, Json(created))),
+        Err(diesel::result::Error::NotFound) => {
+            return Err(rest::client_error(
+                axum::http::StatusCode::NOT_FOUND,
+                format!("device type {} not found", path_id),
+            ));
+        }
+        Err(diesel::result::Error::DatabaseError(kind, info)) => {
+            // Handle uniqueness violation nicely (if you have a unique index on name)
+            if kind == DatabaseErrorKind::UniqueViolation {
+                return Err(client_error(
+                    StatusCode::CONFLICT,
+                    format!("device type '{}' already exists", payload.name.unwrap()),
+                ));
+            } else {
+                let error = diesel::result::Error::DatabaseError(kind, info);
+                return Err(internal_error(error));
+            }
+        }
+        Err(e) => return Err(internal_error(e)),
+    }
 }
 
 #[axum::debug_handler]

@@ -1,12 +1,12 @@
 use crate::api::rest::{self, ApiError};
-use crate::db::models::{Device, DeviceType, NewDevice};
+use crate::db::models::{Device, DeviceType, NewDevice, UpdateDevice};
 use axum::Json;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use diesel::ExpressionMethods;
 use diesel::SelectableHelper;
 use diesel::dsl::exists;
-use diesel::query_dsl::methods::{FilterDsl, SelectDsl};
+use diesel::query_dsl::methods::{FilterDsl, FindDsl, SelectDsl};
 use diesel::result::DatabaseErrorKind;
 use diesel::select;
 use diesel_async::{AsyncConnection, RunQueryDsl};
@@ -159,6 +159,93 @@ pub async fn get_device(
     };
 
     Ok(Json(result))
+}
+
+#[axum::debug_handler]
+pub async fn update_device(
+    State(api_config): State<rest::RestApiConfig>,
+    Path(path_id): Path<i32>,
+    Json(payload): Json<UpdateDevice>,
+) -> Result<(StatusCode, Json<Device>), rest::ApiError> {
+    use crate::db::schema::device::dsl as device_dsl;
+    // Basic validation
+    if payload.name.is_some() {
+        if payload.name.clone().unwrap().len() > 100 {
+            return Err(rest::client_error(
+                StatusCode::BAD_REQUEST,
+                "name too long (max 100)".to_string(),
+            ));
+        }
+    };
+
+    let mut conn = match api_config.shared_pool.get().await {
+        Ok(c) => c,
+        Err(e) => {
+            return Err(rest::internal_error(e));
+        }
+    };
+
+    // Perform the insert and return the created row
+    let result: Result<(StatusCode, Json<Device>), ApiError> =
+        match diesel::update(device_dsl::device.find(path_id))
+            .set(&payload)
+            .returning(Device::as_returning())
+            .get_result(&mut conn)
+            .await
+        {
+            Ok(device) => Ok((StatusCode::CREATED, Json(device))),
+            Err(diesel::result::Error::DatabaseError(
+                DatabaseErrorKind::ForeignKeyViolation,
+                info,
+            )) => {
+                // Optional: check which constraint failed for more specific messages.
+                match info.constraint_name() {
+                    Some("fk_device_type") => Err(rest::client_error(
+                        StatusCode::BAD_REQUEST,
+                        "unknown device type".to_string(),
+                    )),
+                    Some("fk_firmware") => Err(rest::client_error(
+                        StatusCode::BAD_REQUEST,
+                        "unknown firmware".to_string(),
+                    )),
+                    Some("fk_desired_firmware") => Err(rest::client_error(
+                        StatusCode::BAD_REQUEST,
+                        "unknown desired firmware".to_string(),
+                    )),
+                    Some("fk_device_type_current") => Err(rest::client_error(
+                        StatusCode::BAD_REQUEST,
+                        "device type has no link to firmware".to_string(),
+                    )),
+                    Some("fk_device_type_desired") => Err(rest::client_error(
+                        StatusCode::BAD_REQUEST,
+                        "device type has no link to desired firmware".to_string(),
+                    )),
+                    _ => {
+                        let error = diesel::result::Error::DatabaseError(
+                            DatabaseErrorKind::ForeignKeyViolation,
+                            info,
+                        );
+                        Err(rest::internal_error(error))
+                    }
+                }
+            }
+            Err(diesel::result::Error::DatabaseError(DatabaseErrorKind::UniqueViolation, info)) => {
+                // e.g., duplicate device name
+                let _detail = info.message(); // or .details()
+                Err(rest::client_error(
+                    StatusCode::CONFLICT,
+                    "Device already exists".to_string(),
+                ))
+            }
+            Err(diesel::result::Error::NotFound) => {
+                return Err(rest::client_error(
+                    axum::http::StatusCode::NOT_FOUND,
+                    format!("device {} not found", path_id),
+                ));
+            }
+            Err(e) => Err(rest::internal_error(e)),
+        };
+    return result;
 }
 
 #[axum::debug_handler]
