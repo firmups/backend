@@ -7,9 +7,9 @@ use crate::db::schema::device_key::dsl as key_dsl;
 use crate::db::schema::lightweight_key_details::dsl as lw_dsl;
 use crate::db::schema::tls_key_details::dsl as tls_dsl;
 use crate::db::schema::{device_key as dk, lightweight_key_details as lw, tls_key_details as tls};
-use axum::Json;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
+use axum::{Form, Json};
 use diesel::BoolExpressionMethods;
 use diesel::ExpressionMethods;
 use diesel::JoinOnDsl;
@@ -270,10 +270,11 @@ pub async fn list_device_keys(
                 details: tls_details.into(),
             };
         } else {
-            return Err(rest::error::internal_error(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                "Unknown device key kind in DB".to_string(),
-            )));
+            return Err(rest::error::internal_error(
+                rest::error::FirmupsRestInternalError {
+                    message: format!("No details found for device key {}", key.id),
+                },
+            ));
         }
         res.push(DeviceKeyPayload {
             id: key.id,
@@ -335,10 +336,11 @@ pub async fn get_device_key(
                     details: tls_details.into(),
                 };
             } else {
-                return Err(rest::error::internal_error(std::io::Error::new(
-                    std::io::ErrorKind::Other,
-                    "Something went wrong".to_string(),
-                )));
+                return Err(rest::error::internal_error(
+                    rest::error::FirmupsRestInternalError {
+                        message: format!("No details found for device key {}", path_id),
+                    },
+                ));
             }
             return Ok(Json(DeviceKeyPayload {
                 id: key.id,
@@ -424,10 +426,9 @@ pub async fn delete_device_key(
                     };
                 } else {
                     return Err(rest::error::TransactionError::from(
-                        rest::error::internal_error(std::io::Error::new(
-                            std::io::ErrorKind::Other,
-                            "Unknown device key kind in DB".to_string(),
-                        )),
+                        rest::error::internal_error(rest::error::FirmupsRestInternalError {
+                            message: format!("No details found for device key {}", path_id),
+                        }),
                     ));
                 }
 

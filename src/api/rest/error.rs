@@ -93,3 +93,14 @@ where
         },
     }
 }
+
+#[derive(Error, Debug)]
+pub struct FirmupsRestInternalError {
+    pub message: String,
+}
+
+impl fmt::Display for FirmupsRestInternalError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        return write!(f, "{}", self.message);
+    }
+}
