@@ -1,5 +1,5 @@
 use crate::api::rest;
-use crate::db::models::{DeviceTypeFirmware, NewDeviceTypeFirmware, UpdateDeviceTypeFirmware};
+use crate::db::models::{DeviceTypeFirmware, NewDeviceTypeFirmware};
 use axum::Json;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
@@ -106,52 +106,6 @@ pub async fn get_device_type_firmware(
     };
 
     Ok(Json(result))
-}
-
-#[axum::debug_handler]
-pub async fn update_device_type_firmware(
-    State(api_config): State<rest::RestApiConfig>,
-    Path(path_id): Path<i32>,
-    Json(payload): Json<UpdateDeviceTypeFirmware>,
-) -> Result<(StatusCode, Json<UpdateDeviceTypeFirmware>), rest::ApiError> {
-    use crate::db::schema::device_type::dsl::*;
-
-    // Insert
-    let mut conn = match api_config.shared_pool.get().await {
-        Ok(c) => c,
-        Err(e) => {
-            return Err(rest::internal_error(e));
-        }
-    };
-
-    let result: Result<DeviceTypeFirmware, diesel::result::Error> =
-        diesel::update(device_type.find(path_id))
-            .set(&payload)
-            .returning(DeviceTypeFirmware::as_returning())
-            .get_result(&mut conn)
-            .await;
-    match result {
-        Ok(created) => return Ok((StatusCode::CREATED, Json(created))),
-        Err(diesel::result::Error::NotFound) => {
-            return Err(rest::client_error(
-                axum::http::StatusCode::NOT_FOUND,
-                format!("device type firmware {} not found", path_id),
-            ));
-        }
-        Err(diesel::result::Error::DatabaseError(kind, info)) => {
-            // Handle uniqueness violation nicely (if you have a unique index on name)
-            if kind == DatabaseErrorKind::UniqueViolation {
-                return Err(rest::client_error(
-                    StatusCode::CONFLICT,
-                    "device type firmware already exists".to_string(),
-                ));
-            } else {
-                let error = diesel::result::Error::DatabaseError(kind, info);
-                return Err(rest::internal_error(error));
-            }
-        }
-        Err(e) => return Err(rest::internal_error(e)),
-    }
 }
 
 #[axum::debug_handler]

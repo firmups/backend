@@ -100,8 +100,7 @@ CREATE TABLE device_key (
     device INT NOT NULL,
     key_type key_type NOT NULL,
     status key_status NOT NULL,
-    key_details_id INT NOT NULL,
-    FOREIGN KEY (device) REFERENCES device(id)
+    FOREIGN KEY (device) REFERENCES device(id) ON DELETE CASCADE
 );
 
 -- Lightweight Key Details
@@ -112,7 +111,7 @@ CREATE TABLE lightweight_key_details (
     device_key INT NOT NULL,
     algorithm crypto_algorithm NOT NULL,
     key BYTEA NOT NULL,
-    FOREIGN KEY (device_key) REFERENCES device_key(id)
+    FOREIGN KEY (device_key) REFERENCES device_key(id) ON DELETE CASCADE
 );
 
 -- TLS Key Details
@@ -121,5 +120,5 @@ CREATE TABLE tls_key_details (
     device_key INT NOT NULL,
     valid_from TIMESTAMP NOT NULL,
     valid_to TIMESTAMP NOT NULL,
-    FOREIGN KEY (device_key) REFERENCES device_key(id)
+    FOREIGN KEY (device_key) REFERENCES device_key(id) ON DELETE CASCADE
 );

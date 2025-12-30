@@ -3,7 +3,7 @@ use diesel_async::{
     pooled_connection::{AsyncDieselConnectionManager, bb8},
 };
 use dotenvy::dotenv;
-use log::info;
+use log::{error, info};
 use std::{net::SocketAddr, path::PathBuf, sync::Arc};
 use tracing_appender::rolling::{RollingFileAppender, Rotation};
 use tracing_subscriber::{EnvFilter, fmt, layer::SubscriberExt, util::SubscriberInitExt};
@@ -90,11 +90,43 @@ async fn main() {
         }
     };
 
+    let api_key_env = std::env::var("FIRMUPS_API_KEY");
+    let api_key: String = match api_key_env {
+        Ok(key) => {
+            if key.len() < 16 {
+                error!("API key to short. Needs to be at least 16 characters");
+                return;
+            };
+            key
+        }
+        Err(_) => {
+            info!("FIRMUPS_API_KEY not set generating random key:");
+            const CHARSET: &'static [u8; 62] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZ\
+                              abcdefghijklmnopqrstuvwxyz\
+                              0123456789";
+            const LENGTH: usize = 32;
+            let mut buf = [0u8; LENGTH];
+            getrandom::fill(&mut buf).expect("Failed to get random bytes");
+
+            let key: String = buf
+                .iter()
+                .map(|&b| {
+                    let idx = (b as usize) % CHARSET.len();
+                    CHARSET[idx] as char
+                })
+                .collect();
+
+            info!("Generated api_key {}", key);
+            key
+        }
+    };
+
     let rest_api_config = api::rest::RestApiConfig {
         listen_address: rest_addr,
         shared_pool: shared_pool.clone(),
         data_storage_location: data_path.clone(),
         max_firmware_size: max_firmware_size,
+        api_key: api_key,
     };
     let mut rest_api = api::rest::RestApi::new(rest_api_config);
     rest_api.start_blocking().await;

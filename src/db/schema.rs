@@ -48,7 +48,6 @@ diesel::table! {
         device -> Int4,
         key_type -> KeyType,
         status -> KeyStatus,
-        key_details_id -> Int4,
     }
 }
 
