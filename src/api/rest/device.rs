@@ -1,21 +1,18 @@
-use crate::api::rest::{self, ApiError};
-use crate::db::models::{Device, DeviceType, NewDevice, UpdateDevice};
+use crate::api::rest;
+use crate::db::models::{Device, NewDevice, UpdateDevice};
 use axum::Json;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use diesel::ExpressionMethods;
 use diesel::SelectableHelper;
-use diesel::dsl::exists;
 use diesel::query_dsl::methods::{FilterDsl, FindDsl, SelectDsl};
 use diesel::result::DatabaseErrorKind;
-use diesel::select;
-use diesel_async::{AsyncConnection, RunQueryDsl};
-use log::debug;
+use diesel_async::RunQueryDsl;
 
 #[axum::debug_handler]
 pub async fn list_devices(
     State(api_config): State<rest::RestApiConfig>,
-) -> Result<Json<Vec<Device>>, rest::ApiError> {
+) -> Result<Json<Vec<Device>>, rest::error::ApiError> {
     use crate::db::schema::device::dsl::*;
 
     let mut conn = api_config
@@ -23,12 +20,12 @@ pub async fn list_devices(
         .clone()
         .get_owned()
         .await
-        .map_err(rest::internal_error)?;
+        .map_err(rest::error::internal_error)?;
     let result = device
         .select(Device::as_select())
         .load(&mut conn)
         .await
-        .map_err(rest::internal_error)?;
+        .map_err(rest::error::internal_error)?;
 
     Ok(Json(result))
 }
@@ -37,18 +34,18 @@ pub async fn list_devices(
 pub async fn create_device(
     State(api_config): State<rest::RestApiConfig>,
     Json(payload): Json<NewDevice>,
-) -> Result<(StatusCode, Json<Device>), rest::ApiError> {
+) -> Result<(StatusCode, Json<Device>), rest::error::ApiError> {
     use crate::db::schema::device::dsl as device_dsl;
     // Basic validation
     let name_trimmed = payload.name;
     if name_trimmed.is_empty() {
-        return Err(rest::client_error(
+        return Err(rest::error::client_error(
             StatusCode::BAD_REQUEST,
             "name cannot be empty".to_string(),
         ));
     }
     if name_trimmed.len() > 100 {
-        return Err(rest::client_error(
+        return Err(rest::error::client_error(
             StatusCode::BAD_REQUEST,
             "name too long (max 100)".to_string(),
         ));
@@ -57,7 +54,7 @@ pub async fn create_device(
     let mut conn = match api_config.shared_pool.get().await {
         Ok(c) => c,
         Err(e) => {
-            return Err(rest::internal_error(e));
+            return Err(rest::error::internal_error(e));
         }
     };
 
@@ -70,7 +67,7 @@ pub async fn create_device(
     };
 
     // Perform the insert and return the created row
-    let result: Result<(StatusCode, Json<Device>), ApiError> =
+    let result: Result<(StatusCode, Json<Device>), rest::error::ApiError> =
         match diesel::insert_into(device_dsl::device)
             .values(&new_row)
             .returning(Device::as_returning())
@@ -84,23 +81,23 @@ pub async fn create_device(
             )) => {
                 // Optional: check which constraint failed for more specific messages.
                 match info.constraint_name() {
-                    Some("fk_device_type") => Err(rest::client_error(
+                    Some("fk_device_type") => Err(rest::error::client_error(
                         StatusCode::BAD_REQUEST,
                         "unknown device type".to_string(),
                     )),
-                    Some("fk_firmware") => Err(rest::client_error(
+                    Some("fk_firmware") => Err(rest::error::client_error(
                         StatusCode::BAD_REQUEST,
                         "unknown firmware".to_string(),
                     )),
-                    Some("fk_desired_firmware") => Err(rest::client_error(
+                    Some("fk_desired_firmware") => Err(rest::error::client_error(
                         StatusCode::BAD_REQUEST,
                         "unknown desired firmware".to_string(),
                     )),
-                    Some("fk_device_type_current") => Err(rest::client_error(
+                    Some("fk_device_type_current") => Err(rest::error::client_error(
                         StatusCode::BAD_REQUEST,
                         "device type has no link to firmware".to_string(),
                     )),
-                    Some("fk_device_type_desired") => Err(rest::client_error(
+                    Some("fk_device_type_desired") => Err(rest::error::client_error(
                         StatusCode::BAD_REQUEST,
                         "device type has no link to desired firmware".to_string(),
                     )),
@@ -109,7 +106,7 @@ pub async fn create_device(
                             DatabaseErrorKind::ForeignKeyViolation,
                             info,
                         );
-                        Err(rest::internal_error(error))
+                        Err(rest::error::internal_error(error))
                     }
                 }
             }
@@ -117,12 +114,12 @@ pub async fn create_device(
             Err(diesel::result::Error::DatabaseError(DatabaseErrorKind::UniqueViolation, info)) => {
                 // e.g., duplicate device name
                 let _detail = info.message(); // or .details()
-                Err(rest::client_error(
+                Err(rest::error::client_error(
                     StatusCode::CONFLICT,
                     "Device already exists".to_string(),
                 ))
             }
-            Err(e) => Err(rest::internal_error(e)),
+            Err(e) => Err(rest::error::internal_error(e)),
         };
     return result;
 }
@@ -131,7 +128,7 @@ pub async fn create_device(
 pub async fn get_device(
     State(api_config): State<rest::RestApiConfig>,
     Path(path_id): Path<i32>,
-) -> Result<Json<Device>, ApiError> {
+) -> Result<Json<Device>, rest::error::ApiError> {
     use crate::db::schema::device::dsl::*;
 
     let mut conn = api_config
@@ -139,7 +136,7 @@ pub async fn get_device(
         .clone()
         .get_owned()
         .await
-        .map_err(rest::internal_error)?;
+        .map_err(rest::error::internal_error)?;
     let result = match device
         .select(Device::as_select())
         .filter(id.eq(path_id))
@@ -148,13 +145,13 @@ pub async fn get_device(
     {
         Ok(fw) => fw,
         Err(diesel::result::Error::NotFound) => {
-            return Err(rest::client_error(
+            return Err(rest::error::client_error(
                 StatusCode::NOT_FOUND,
                 format!("device {} not found", path_id),
             ));
         }
         Err(e) => {
-            return Err(rest::internal_error(e));
+            return Err(rest::error::internal_error(e));
         }
     };
 
@@ -166,12 +163,12 @@ pub async fn update_device(
     State(api_config): State<rest::RestApiConfig>,
     Path(path_id): Path<i32>,
     Json(payload): Json<UpdateDevice>,
-) -> Result<(StatusCode, Json<Device>), rest::ApiError> {
+) -> Result<(StatusCode, Json<Device>), rest::error::ApiError> {
     use crate::db::schema::device::dsl as device_dsl;
     // Basic validation
     if payload.name.is_some() {
         if payload.name.clone().unwrap().len() > 100 {
-            return Err(rest::client_error(
+            return Err(rest::error::client_error(
                 StatusCode::BAD_REQUEST,
                 "name too long (max 100)".to_string(),
             ));
@@ -181,12 +178,12 @@ pub async fn update_device(
     let mut conn = match api_config.shared_pool.get().await {
         Ok(c) => c,
         Err(e) => {
-            return Err(rest::internal_error(e));
+            return Err(rest::error::internal_error(e));
         }
     };
 
     // Perform the insert and return the created row
-    let result: Result<(StatusCode, Json<Device>), ApiError> =
+    let result: Result<(StatusCode, Json<Device>), rest::error::ApiError> =
         match diesel::update(device_dsl::device.find(path_id))
             .set(&payload)
             .returning(Device::as_returning())
@@ -200,23 +197,23 @@ pub async fn update_device(
             )) => {
                 // Optional: check which constraint failed for more specific messages.
                 match info.constraint_name() {
-                    Some("fk_device_type") => Err(rest::client_error(
+                    Some("fk_device_type") => Err(rest::error::client_error(
                         StatusCode::BAD_REQUEST,
                         "unknown device type".to_string(),
                     )),
-                    Some("fk_firmware") => Err(rest::client_error(
+                    Some("fk_firmware") => Err(rest::error::client_error(
                         StatusCode::BAD_REQUEST,
                         "unknown firmware".to_string(),
                     )),
-                    Some("fk_desired_firmware") => Err(rest::client_error(
+                    Some("fk_desired_firmware") => Err(rest::error::client_error(
                         StatusCode::BAD_REQUEST,
                         "unknown desired firmware".to_string(),
                     )),
-                    Some("fk_device_type_current") => Err(rest::client_error(
+                    Some("fk_device_type_current") => Err(rest::error::client_error(
                         StatusCode::BAD_REQUEST,
                         "device type has no link to firmware".to_string(),
                     )),
-                    Some("fk_device_type_desired") => Err(rest::client_error(
+                    Some("fk_device_type_desired") => Err(rest::error::client_error(
                         StatusCode::BAD_REQUEST,
                         "device type has no link to desired firmware".to_string(),
                     )),
@@ -225,25 +222,25 @@ pub async fn update_device(
                             DatabaseErrorKind::ForeignKeyViolation,
                             info,
                         );
-                        Err(rest::internal_error(error))
+                        Err(rest::error::internal_error(error))
                     }
                 }
             }
             Err(diesel::result::Error::DatabaseError(DatabaseErrorKind::UniqueViolation, info)) => {
                 // e.g., duplicate device name
                 let _detail = info.message(); // or .details()
-                Err(rest::client_error(
+                Err(rest::error::client_error(
                     StatusCode::CONFLICT,
                     "Device already exists".to_string(),
                 ))
             }
             Err(diesel::result::Error::NotFound) => {
-                return Err(rest::client_error(
+                return Err(rest::error::client_error(
                     axum::http::StatusCode::NOT_FOUND,
                     format!("device {} not found", path_id),
                 ));
             }
-            Err(e) => Err(rest::internal_error(e)),
+            Err(e) => Err(rest::error::internal_error(e)),
         };
     return result;
 }
@@ -252,7 +249,7 @@ pub async fn update_device(
 pub async fn delete_device(
     State(api_config): State<rest::RestApiConfig>,
     Path(path_id): Path<i32>,
-) -> Result<Json<Device>, rest::ApiError> {
+) -> Result<Json<Device>, rest::error::ApiError> {
     use crate::db::schema::device::dsl::*;
 
     let mut conn = api_config
@@ -260,7 +257,7 @@ pub async fn delete_device(
         .clone()
         .get_owned()
         .await
-        .map_err(rest::internal_error)?;
+        .map_err(rest::error::internal_error)?;
 
     let deleted: Result<Device, diesel::result::Error> =
         diesel::delete(device.filter(id.eq(path_id)))
@@ -271,11 +268,11 @@ pub async fn delete_device(
     match deleted {
         Ok(row) => Ok(Json(row)),
         Err(diesel::result::Error::NotFound) => {
-            return Err(rest::client_error(
+            return Err(rest::error::client_error(
                 axum::http::StatusCode::NOT_FOUND,
                 format!("device {} not found", path_id),
             ));
         }
-        Err(e) => return Err(rest::internal_error(e)),
+        Err(e) => return Err(rest::error::internal_error(e)),
     }
 }

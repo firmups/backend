@@ -97,17 +97,17 @@ pub async fn create_device_key(
     State(api_config): State<rest::RestApiConfig>,
     Path(device_id): Path<i32>,
     Json(payload): Json<NewDeviceKeyPayload>,
-) -> Result<(StatusCode, Json<DeviceKeyPayload>), rest::ApiError> {
+) -> Result<(StatusCode, Json<DeviceKeyPayload>), rest::error::ApiError> {
     // Insert
     let mut conn = match api_config.shared_pool.get().await {
         Ok(c) => c,
         Err(e) => {
-            return Err(rest::internal_error(e));
+            return Err(rest::error::internal_error(e));
         }
     };
 
-    let tx_result: Result<DeviceKeyPayload, rest::TransactionError> = conn
-        .transaction::<_, rest::TransactionError, _>(|mut conn| {
+    let tx_result: Result<DeviceKeyPayload, rest::error::TransactionError> = conn
+        .transaction::<_, rest::error::TransactionError, _>(|mut conn| {
             Box::pin(async move {
                 let kind: DeviceKeyKind;
                 let key_type: KeyType;
@@ -127,13 +127,15 @@ pub async fn create_device_key(
                     .get_result(conn)
                     .await?;
                 if next_exists {
-                    return Err(rest::TransactionError::from(rest::client_error(
-                        StatusCode::CONFLICT,
-                        format!(
-                            "Already a key with NEXT state present on device {}",
-                            device_id
+                    return Err(rest::error::TransactionError::from(
+                        rest::error::client_error(
+                            StatusCode::CONFLICT,
+                            format!(
+                                "Already a key with NEXT state present on device {}",
+                                device_id
+                            ),
                         ),
-                    )));
+                    ));
                 }
 
                 let new_device_key = crate::db::models::NewDeviceKey {
@@ -167,10 +169,12 @@ pub async fn create_device_key(
                         };
                     }
                     NewDeviceKeyKind::Tls { details: _ } => {
-                        return Err(rest::TransactionError::from(rest::client_error(
-                            StatusCode::CONFLICT,
-                            "TLS key functionality not yet implemented".to_string(),
-                        )));
+                        return Err(rest::error::TransactionError::from(
+                            rest::error::client_error(
+                                StatusCode::CONFLICT,
+                                "TLS key functionality not yet implemented".to_string(),
+                            ),
+                        ));
                     }
                 }
 
@@ -188,12 +192,12 @@ pub async fn create_device_key(
     match tx_result {
         Ok(device_key_payload) => Ok((StatusCode::CREATED, Json(device_key_payload))),
 
-        Err(rest::TransactionError::Db(DieselError::DatabaseError(
+        Err(rest::error::TransactionError::Db(DieselError::DatabaseError(
             DatabaseErrorKind::ForeignKeyViolation,
             info,
         ))) => {
             match info.constraint_name() {
-                Some("device_key_device_fkey") => Err(rest::client_error(
+                Some("device_key_device_fkey") => Err(rest::error::client_error(
                     StatusCode::NOT_FOUND,
                     format!("device {} not found", device_id),
                 )),
@@ -201,12 +205,12 @@ pub async fn create_device_key(
                     // If you want to return an internal error built from the Diesel error:
                     let err =
                         DieselError::DatabaseError(DatabaseErrorKind::ForeignKeyViolation, info);
-                    Err(rest::internal_error(err))
+                    Err(rest::error::internal_error(err))
                 }
             }
         }
-        Err(rest::TransactionError::Db(e)) => Err(rest::internal_error(e)),
-        Err(rest::TransactionError::Api(api)) => Err(api),
+        Err(rest::error::TransactionError::Db(e)) => Err(rest::error::internal_error(e)),
+        Err(rest::error::TransactionError::Api(api)) => Err(api),
     }
 }
 
@@ -214,13 +218,13 @@ pub async fn create_device_key(
 pub async fn list_device_keys(
     State(api_config): State<rest::RestApiConfig>,
     Path(device_id): Path<i32>,
-) -> Result<Json<Vec<DeviceKeyPayload>>, rest::ApiError> {
+) -> Result<Json<Vec<DeviceKeyPayload>>, rest::error::ApiError> {
     let mut conn = api_config
         .shared_pool
         .clone()
         .get_owned()
         .await
-        .map_err(rest::internal_error)?;
+        .map_err(rest::error::internal_error)?;
 
     let rows: Vec<(
         DeviceKey,
@@ -245,10 +249,10 @@ pub async fn list_device_keys(
         ))
         .load(&mut conn)
         .await
-        .map_err(rest::internal_error)?;
+        .map_err(rest::error::internal_error)?;
 
     if rows.len() == 0 {
-        return Err(rest::client_error(
+        return Err(rest::error::client_error(
             StatusCode::NOT_FOUND,
             format!("device {} not found", device_id),
         ));
@@ -266,7 +270,7 @@ pub async fn list_device_keys(
                 details: tls_details.into(),
             };
         } else {
-            return Err(rest::internal_error(std::io::Error::new(
+            return Err(rest::error::internal_error(std::io::Error::new(
                 std::io::ErrorKind::Other,
                 "Unknown device key kind in DB".to_string(),
             )));
@@ -285,13 +289,13 @@ pub async fn list_device_keys(
 pub async fn get_device_key(
     State(api_config): State<rest::RestApiConfig>,
     Path((device_id, path_id)): Path<(i32, i32)>,
-) -> Result<Json<DeviceKeyPayload>, rest::ApiError> {
+) -> Result<Json<DeviceKeyPayload>, rest::error::ApiError> {
     let mut conn = api_config
         .shared_pool
         .clone()
         .get_owned()
         .await
-        .map_err(rest::internal_error)?;
+        .map_err(rest::error::internal_error)?;
     let result: Result<
         (
             DeviceKey,
@@ -331,7 +335,7 @@ pub async fn get_device_key(
                     details: tls_details.into(),
                 };
             } else {
-                return Err(rest::internal_error(std::io::Error::new(
+                return Err(rest::error::internal_error(std::io::Error::new(
                     std::io::ErrorKind::Other,
                     "Something went wrong".to_string(),
                 )));
@@ -343,13 +347,13 @@ pub async fn get_device_key(
             }));
         }
         Err(diesel::result::Error::NotFound) => {
-            return Err(rest::client_error(
+            return Err(rest::error::client_error(
                 StatusCode::NOT_FOUND,
                 format!("device {} or device key {} not found", device_id, path_id),
             ));
         }
         Err(e) => {
-            return Err(rest::internal_error(e));
+            return Err(rest::error::internal_error(e));
         }
     };
 }
@@ -358,16 +362,16 @@ pub async fn get_device_key(
 pub async fn delete_device_key(
     State(api_config): State<rest::RestApiConfig>,
     Path((device_id, path_id)): Path<(i32, i32)>,
-) -> Result<Json<DeviceKeyPayload>, rest::ApiError> {
+) -> Result<Json<DeviceKeyPayload>, rest::error::ApiError> {
     let mut conn = api_config
         .shared_pool
         .clone()
         .get_owned()
         .await
-        .map_err(rest::internal_error)?;
+        .map_err(rest::error::internal_error)?;
 
-    let tx_result: Result<DeviceKeyPayload, rest::TransactionError> = conn
-        .transaction::<_, rest::TransactionError, _>(|mut conn| {
+    let tx_result: Result<DeviceKeyPayload, rest::error::TransactionError> = conn
+        .transaction::<_, rest::error::TransactionError, _>(|mut conn| {
             Box::pin(async move {
                 let active_filter = key_dsl::device_key
                     .filter(key_dsl::id.eq(path_id))
@@ -377,10 +381,12 @@ pub async fn delete_device_key(
                     .get_result(conn)
                     .await?;
                 if is_active {
-                    return Err(rest::TransactionError::from(rest::client_error(
-                        StatusCode::CONFLICT,
-                        "Active key on device cannot be deleted".to_string(),
-                    )));
+                    return Err(rest::error::TransactionError::from(
+                        rest::error::client_error(
+                            StatusCode::CONFLICT,
+                            "Active key on device cannot be deleted".to_string(),
+                        ),
+                    ));
                 }
 
                 let (key, lw_opt, tls_opt): (
@@ -417,12 +423,12 @@ pub async fn delete_device_key(
                         details: tls_details.into(),
                     };
                 } else {
-                    return Err(rest::TransactionError::from(rest::internal_error(
-                        std::io::Error::new(
+                    return Err(rest::error::TransactionError::from(
+                        rest::error::internal_error(std::io::Error::new(
                             std::io::ErrorKind::Other,
                             "Unknown device key kind in DB".to_string(),
-                        ),
-                    )));
+                        )),
+                    ));
                 }
 
                 let _: DeviceKey =
@@ -443,13 +449,13 @@ pub async fn delete_device_key(
         Ok(device_key_payload) => {
             return Ok(Json(device_key_payload));
         }
-        Err(rest::TransactionError::Db(diesel::result::Error::NotFound)) => {
-            return Err(rest::client_error(
+        Err(rest::error::TransactionError::Db(diesel::result::Error::NotFound)) => {
+            return Err(rest::error::client_error(
                 StatusCode::NOT_FOUND,
                 format!("device {} or device key {} not found", device_id, path_id),
             ));
         }
-        Err(rest::TransactionError::Db(e)) => Err(rest::internal_error(e)),
-        Err(rest::TransactionError::Api(api)) => Err(api),
+        Err(rest::error::TransactionError::Db(e)) => Err(rest::error::internal_error(e)),
+        Err(rest::error::TransactionError::Api(api)) => Err(api),
     }
 }

@@ -100,7 +100,7 @@ async fn main() {
             key
         }
         Err(_) => {
-            info!("FIRMUPS_API_KEY not set generating random key:");
+            info!("FIRMUPS_API_KEY not set generating random key...");
             const CHARSET: &'static [u8; 62] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZ\
                               abcdefghijklmnopqrstuvwxyz\
                               0123456789";

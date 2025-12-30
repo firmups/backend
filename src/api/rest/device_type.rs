@@ -1,4 +1,4 @@
-use crate::api::rest::{self, client_error, internal_error};
+use crate::api::rest;
 use crate::db::models::{DeviceType, NewDeviceType, UpdateDeviceType};
 use axum::Json;
 use axum::extract::{Path, State};
@@ -8,19 +8,17 @@ use diesel::SelectableHelper;
 use diesel::query_dsl::methods::{FilterDsl, FindDsl, SelectDsl};
 use diesel::result::DatabaseErrorKind;
 use diesel_async::RunQueryDsl;
-use log::debug;
-use sha2::digest::Update;
 
 #[axum::debug_handler]
 pub async fn create_device_type(
     State(api_config): State<rest::RestApiConfig>,
     Json(payload): Json<NewDeviceType>,
-) -> Result<(StatusCode, Json<DeviceType>), rest::ApiError> {
+) -> Result<(StatusCode, Json<DeviceType>), rest::error::ApiError> {
     use crate::db::schema::device_type::dsl::*;
     // Basic validation
     let name_trimmed = payload.name.trim();
     if name_trimmed.len() > 100 {
-        return Err(client_error(
+        return Err(rest::error::client_error(
             StatusCode::BAD_REQUEST,
             "name too long (max 100)".to_string(),
         ));
@@ -30,7 +28,7 @@ pub async fn create_device_type(
     let mut conn = match api_config.shared_pool.get().await {
         Ok(c) => c,
         Err(e) => {
-            return Err(internal_error(e));
+            return Err(rest::error::internal_error(e));
         }
     };
 
@@ -51,23 +49,23 @@ pub async fn create_device_type(
         Err(diesel::result::Error::DatabaseError(kind, info)) => {
             // Handle uniqueness violation nicely (if you have a unique index on name)
             if kind == DatabaseErrorKind::UniqueViolation {
-                return Err(client_error(
+                return Err(rest::error::client_error(
                     StatusCode::CONFLICT,
                     format!("device type '{}' already exists", name_trimmed),
                 ));
             } else {
                 let error = diesel::result::Error::DatabaseError(kind, info);
-                return Err(internal_error(error));
+                return Err(rest::error::internal_error(error));
             }
         }
-        Err(e) => return Err(internal_error(e)),
+        Err(e) => return Err(rest::error::internal_error(e)),
     }
 }
 
 #[axum::debug_handler]
 pub async fn list_device_types(
     State(api_config): State<rest::RestApiConfig>,
-) -> Result<Json<Vec<DeviceType>>, rest::ApiError> {
+) -> Result<Json<Vec<DeviceType>>, rest::error::ApiError> {
     use crate::db::schema::device_type::dsl::*;
 
     let mut conn = api_config
@@ -75,12 +73,12 @@ pub async fn list_device_types(
         .clone()
         .get_owned()
         .await
-        .map_err(rest::internal_error)?;
+        .map_err(rest::error::internal_error)?;
     let result = device_type
         .select(DeviceType::as_select())
         .load(&mut conn)
         .await
-        .map_err(rest::internal_error)?;
+        .map_err(rest::error::internal_error)?;
 
     Ok(Json(result))
 }
@@ -89,7 +87,7 @@ pub async fn list_device_types(
 pub async fn get_device_type(
     State(api_config): State<rest::RestApiConfig>,
     Path(path_id): Path<i32>,
-) -> Result<Json<DeviceType>, rest::ApiError> {
+) -> Result<Json<DeviceType>, rest::error::ApiError> {
     use crate::db::schema::device_type::dsl::*;
 
     let mut conn = api_config
@@ -97,7 +95,7 @@ pub async fn get_device_type(
         .clone()
         .get_owned()
         .await
-        .map_err(rest::internal_error)?;
+        .map_err(rest::error::internal_error)?;
     let result = match device_type
         .select(DeviceType::as_select())
         .filter(id.eq(path_id))
@@ -106,13 +104,13 @@ pub async fn get_device_type(
     {
         Ok(dt) => dt,
         Err(diesel::result::Error::NotFound) => {
-            return Err(rest::client_error(
+            return Err(rest::error::client_error(
                 StatusCode::NOT_FOUND,
                 format!("device type {} not found", path_id),
             ));
         }
         Err(e) => {
-            return Err(rest::internal_error(e));
+            return Err(rest::error::internal_error(e));
         }
     };
 
@@ -124,12 +122,12 @@ pub async fn update_device_type(
     State(api_config): State<rest::RestApiConfig>,
     Path(path_id): Path<i32>,
     Json(payload): Json<UpdateDeviceType>,
-) -> Result<(StatusCode, Json<DeviceType>), rest::ApiError> {
+) -> Result<(StatusCode, Json<DeviceType>), rest::error::ApiError> {
     use crate::db::schema::device_type::dsl::*;
     // Basic validation
     if payload.name.is_some() {
         if payload.name.clone().unwrap().len() > 100 {
-            return Err(client_error(
+            return Err(rest::error::client_error(
                 StatusCode::BAD_REQUEST,
                 "name too long (max 100)".to_string(),
             ));
@@ -140,7 +138,7 @@ pub async fn update_device_type(
     let mut conn = match api_config.shared_pool.get().await {
         Ok(c) => c,
         Err(e) => {
-            return Err(internal_error(e));
+            return Err(rest::error::internal_error(e));
         }
     };
 
@@ -153,7 +151,7 @@ pub async fn update_device_type(
     match result {
         Ok(created) => return Ok((StatusCode::CREATED, Json(created))),
         Err(diesel::result::Error::NotFound) => {
-            return Err(rest::client_error(
+            return Err(rest::error::client_error(
                 axum::http::StatusCode::NOT_FOUND,
                 format!("device type {} not found", path_id),
             ));
@@ -161,16 +159,16 @@ pub async fn update_device_type(
         Err(diesel::result::Error::DatabaseError(kind, info)) => {
             // Handle uniqueness violation nicely (if you have a unique index on name)
             if kind == DatabaseErrorKind::UniqueViolation {
-                return Err(client_error(
+                return Err(rest::error::client_error(
                     StatusCode::CONFLICT,
                     format!("device type '{}' already exists", payload.name.unwrap()),
                 ));
             } else {
                 let error = diesel::result::Error::DatabaseError(kind, info);
-                return Err(internal_error(error));
+                return Err(rest::error::internal_error(error));
             }
         }
-        Err(e) => return Err(internal_error(e)),
+        Err(e) => return Err(rest::error::internal_error(e)),
     }
 }
 
@@ -178,7 +176,7 @@ pub async fn update_device_type(
 pub async fn delete_device_type(
     State(api_config): State<rest::RestApiConfig>,
     Path(path_id): Path<i32>,
-) -> Result<Json<DeviceType>, rest::ApiError> {
+) -> Result<Json<DeviceType>, rest::error::ApiError> {
     use crate::db::schema::device_type::dsl::*;
 
     let mut conn = api_config
@@ -186,7 +184,7 @@ pub async fn delete_device_type(
         .clone()
         .get_owned()
         .await
-        .map_err(rest::internal_error)?;
+        .map_err(rest::error::internal_error)?;
 
     let deleted: Result<DeviceType, diesel::result::Error> =
         diesel::delete(device_type.filter(id.eq(path_id)))
@@ -196,10 +194,10 @@ pub async fn delete_device_type(
 
     match deleted {
         Ok(row) => Ok(Json(row)),
-        Err(diesel::result::Error::NotFound) => Err(rest::client_error(
+        Err(diesel::result::Error::NotFound) => Err(rest::error::client_error(
             axum::http::StatusCode::NOT_FOUND,
             format!("device type {} not found", path_id),
         )),
-        Err(e) => Err(rest::internal_error(e)),
+        Err(e) => Err(rest::error::internal_error(e)),
     }
 }

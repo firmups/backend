@@ -1,4 +1,4 @@
-use crate::api::rest::{self, ApiError, client_error, internal_error};
+use crate::api::rest;
 use crate::db::models::{Firmware, NewFirmware};
 use axum::Json;
 use axum::body::Body;
@@ -20,7 +20,7 @@ use uuid::Uuid;
 #[axum::debug_handler]
 pub async fn list_firmwares(
     State(api_config): State<rest::RestApiConfig>,
-) -> Result<Json<Vec<Firmware>>, ApiError> {
+) -> Result<Json<Vec<Firmware>>, rest::error::ApiError> {
     use crate::db::schema::firmware::dsl::*;
 
     let mut conn = api_config
@@ -28,12 +28,12 @@ pub async fn list_firmwares(
         .clone()
         .get_owned()
         .await
-        .map_err(internal_error)?;
+        .map_err(rest::error::internal_error)?;
     let result = firmware
         .select(Firmware::as_select())
         .load(&mut conn)
         .await
-        .map_err(internal_error)?;
+        .map_err(rest::error::internal_error)?;
 
     Ok(Json(result))
 }
@@ -42,7 +42,7 @@ pub async fn list_firmwares(
 pub async fn create_firmware(
     State(api_config): State<rest::RestApiConfig>,
     mut multipart: Multipart,
-) -> Result<(StatusCode, Json<Firmware>), rest::ApiError> {
+) -> Result<(StatusCode, Json<Firmware>), rest::error::ApiError> {
     use crate::db::schema::firmware::dsl::*;
 
     let mut in_name: Option<String> = None;
@@ -79,7 +79,7 @@ pub async fn create_firmware(
     let in_name = match in_name {
         Some(v) if !v.is_empty() => v,
         _ => {
-            return Err(client_error(
+            return Err(rest::error::client_error(
                 StatusCode::BAD_REQUEST,
                 "name cannot be empty".to_string(),
             ));
@@ -87,7 +87,7 @@ pub async fn create_firmware(
     };
 
     if in_name.len() > 100 {
-        return Err(client_error(
+        return Err(rest::error::client_error(
             StatusCode::BAD_REQUEST,
             "name too long (max 100)".to_string(),
         ));
@@ -96,7 +96,7 @@ pub async fn create_firmware(
     let in_version = match in_version {
         Some(v) if !v.is_empty() => v,
         _ => {
-            return Err(client_error(
+            return Err(rest::error::client_error(
                 StatusCode::BAD_REQUEST,
                 "version cannot be empty".to_string(),
             ));
@@ -104,7 +104,7 @@ pub async fn create_firmware(
     };
 
     if in_version.len() > 100 {
-        return Err(client_error(
+        return Err(rest::error::client_error(
             StatusCode::BAD_REQUEST,
             "version too long (max 100)".to_string(),
         ));
@@ -113,7 +113,7 @@ pub async fn create_firmware(
     let file = match in_file_bytes {
         Some(f) if !f.is_empty() => f,
         _ => {
-            return Err(client_error(
+            return Err(rest::error::client_error(
                 StatusCode::BAD_REQUEST,
                 "firmware file required".to_string(),
             ));
@@ -141,17 +141,16 @@ pub async fn create_firmware(
     path.push("firmware");
     fs::create_dir_all(&path)
         .await
-        .map_err(rest::internal_error)?;
+        .map_err(rest::error::internal_error)?;
     path.push(&safe_name);
     fs::write(&path, &file)
         .await
-        .map_err(rest::internal_error)?;
-
+        .map_err(rest::error::internal_error)?;
     let mut conn = match api_config.shared_pool.get().await {
         Ok(c) => c,
         Err(e) => {
             let _ = fs::remove_file(&path).await;
-            return Err(internal_error(e));
+            return Err(rest::error::internal_error(e));
         }
     };
 
@@ -165,7 +164,7 @@ pub async fn create_firmware(
         Err(diesel::result::Error::DatabaseError(kind, info)) => {
             if kind == DatabaseErrorKind::UniqueViolation {
                 let _ = fs::remove_file(&path).await;
-                return Err(client_error(
+                return Err(rest::error::client_error(
                     StatusCode::CONFLICT,
                     format!(
                         "firmware '{}:{}' already exists",
@@ -175,12 +174,12 @@ pub async fn create_firmware(
             } else {
                 let _ = fs::remove_file(&path).await;
                 let error = diesel::result::Error::DatabaseError(kind, info);
-                return Err(internal_error(error));
+                return Err(rest::error::internal_error(error));
             }
         }
         Err(err) => {
             let _ = fs::remove_file(&path).await;
-            return Err(internal_error(err));
+            return Err(rest::error::internal_error(err));
         }
     }
 }
@@ -190,7 +189,7 @@ pub async fn create_firmware(
 //     State(api_config): State<rest::RestApiConfig>,
 //     Path(path_id): Path<i32>,
 //     mut multipart: Multipart,
-// ) -> Result<(StatusCode, Json<Firmware>), rest::ApiError> {
+// ) -> Result<(StatusCode, Json<Firmware>), rest::error::ApiError> {
 //     use crate::db::schema::firmware::dsl::*;
 
 //     let mut in_name: Option<String> = None;
@@ -225,7 +224,7 @@ pub async fn create_firmware(
 //     // Basic validation
 //     if in_name.is_some() {
 //         if in_name.clone().unwrap().len() > 100 {
-//             return Err(rest::client_error(
+//             return Err(rest::error::client_error(
 //                 StatusCode::BAD_REQUEST,
 //                 "name too long (max 100)".to_string(),
 //             ));
@@ -234,7 +233,7 @@ pub async fn create_firmware(
 
 //     if in_version.is_some() {
 //         if in_version.clone().unwrap().len() > 100 {
-//             return Err(rest::client_error(
+//             return Err(rest::error::client_error(
 //                 StatusCode::BAD_REQUEST,
 //                 "version too long (max 100)".to_string(),
 //             ));
@@ -268,12 +267,12 @@ pub async fn create_firmware(
 //         let safe_name = format!("{}.bin", updated_firmware.file_id.clone().unwrap());
 //         fs::create_dir_all(&base_path)
 //             .await
-//             .map_err(rest::internal_error)?;
+//             .map_err(rest::error::internal_error)?;
 //         let mut path = base_path.clone();
 //         path.push(&safe_name);
 //         fs::write(&path, &file)
 //             .await
-//             .map_err(rest::internal_error)?;
+//             .map_err(rest::error::internal_error)?;
 //         new_path = Some(path);
 //     };
 
@@ -330,7 +329,7 @@ pub async fn create_firmware(
 //             if new_path.is_some() {
 //                 let _ = fs::remove_file(&new_path.unwrap()).await;
 //             }
-//             return Err(rest::client_error(
+//             return Err(rest::error::client_error(
 //                 axum::http::StatusCode::NOT_FOUND,
 //                 format!("firmware {} not found", path_id),
 //             ));
@@ -366,7 +365,7 @@ pub async fn create_firmware(
 pub async fn get_firmware(
     State(api_config): State<rest::RestApiConfig>,
     Path(path_id): Path<i32>,
-) -> Result<Json<Firmware>, rest::ApiError> {
+) -> Result<Json<Firmware>, rest::error::ApiError> {
     use crate::db::schema::firmware::dsl::*;
 
     let mut conn = api_config
@@ -374,7 +373,7 @@ pub async fn get_firmware(
         .clone()
         .get_owned()
         .await
-        .map_err(rest::internal_error)?;
+        .map_err(rest::error::internal_error)?;
     let result = match firmware
         .select(Firmware::as_select())
         .filter(id.eq(path_id))
@@ -383,13 +382,13 @@ pub async fn get_firmware(
     {
         Ok(fw) => fw,
         Err(diesel::result::Error::NotFound) => {
-            return Err(rest::client_error(
+            return Err(rest::error::client_error(
                 StatusCode::NOT_FOUND,
                 format!("firmware {} not found", path_id),
             ));
         }
         Err(e) => {
-            return Err(rest::internal_error(e));
+            return Err(rest::error::internal_error(e));
         }
     };
 
@@ -400,7 +399,7 @@ pub async fn get_firmware(
 pub async fn delete_firmware(
     State(api_config): State<rest::RestApiConfig>,
     Path(path_id): Path<i32>,
-) -> Result<Json<Firmware>, ApiError> {
+) -> Result<Json<Firmware>, rest::error::ApiError> {
     use crate::db::schema::firmware::dsl::*;
 
     let mut conn = api_config
@@ -408,7 +407,7 @@ pub async fn delete_firmware(
         .clone()
         .get_owned()
         .await
-        .map_err(rest::internal_error)?;
+        .map_err(rest::error::internal_error)?;
 
     let deleted: Result<Firmware, diesel::result::Error> =
         diesel::delete(firmware.filter(id.eq(path_id)))
@@ -435,12 +434,12 @@ pub async fn delete_firmware(
             Ok(Json(row))
         }
         Err(diesel::result::Error::NotFound) => {
-            return Err(client_error(
+            return Err(rest::error::client_error(
                 axum::http::StatusCode::NOT_FOUND,
                 format!("firmware {} not found", path_id),
             ));
         }
-        Err(e) => Err(internal_error(e)),
+        Err(e) => Err(rest::error::internal_error(e)),
     }
 }
 
@@ -448,7 +447,7 @@ pub async fn delete_firmware(
 pub async fn get_firmware_file_metadata(
     State(api_config): State<rest::RestApiConfig>,
     Path(path_id): Path<i32>,
-) -> Result<impl IntoResponse, ApiError> {
+) -> Result<impl IntoResponse, rest::error::ApiError> {
     use crate::db::schema::firmware::dsl::*;
 
     let mut conn = api_config
@@ -456,7 +455,7 @@ pub async fn get_firmware_file_metadata(
         .clone()
         .get_owned()
         .await
-        .map_err(rest::internal_error)?;
+        .map_err(rest::error::internal_error)?;
     let fw = match firmware
         .select(Firmware::as_select())
         .filter(id.eq(path_id))
@@ -465,13 +464,13 @@ pub async fn get_firmware_file_metadata(
     {
         Ok(fw) => fw,
         Err(diesel::result::Error::NotFound) => {
-            return Err(rest::client_error(
+            return Err(rest::error::client_error(
                 StatusCode::NOT_FOUND,
                 format!("firmware {} not found", path_id),
             ));
         }
         Err(e) => {
-            return Err(rest::internal_error(e));
+            return Err(rest::error::internal_error(e));
         }
     };
 
@@ -504,7 +503,7 @@ pub async fn get_firmware_file_metadata(
 pub async fn get_firmware_file(
     State(api_config): State<rest::RestApiConfig>,
     Path(path_id): Path<i32>,
-) -> Result<impl IntoResponse, ApiError> {
+) -> Result<impl IntoResponse, rest::error::ApiError> {
     use crate::db::schema::firmware::dsl::*;
 
     let mut conn = api_config
@@ -512,7 +511,7 @@ pub async fn get_firmware_file(
         .clone()
         .get_owned()
         .await
-        .map_err(rest::internal_error)?;
+        .map_err(rest::error::internal_error)?;
     let fw = match firmware
         .select(Firmware::as_select())
         .filter(id.eq(path_id))
@@ -521,13 +520,13 @@ pub async fn get_firmware_file(
     {
         Ok(fw) => fw,
         Err(diesel::result::Error::NotFound) => {
-            return Err(rest::client_error(
+            return Err(rest::error::client_error(
                 StatusCode::NOT_FOUND,
                 format!("firmware {} not found", path_id),
             ));
         }
         Err(e) => {
-            return Err(rest::internal_error(e));
+            return Err(rest::error::internal_error(e));
         }
     };
 
@@ -537,7 +536,9 @@ pub async fn get_firmware_file(
     path.push(&safe_name);
 
     // Open file
-    let file = fs::File::open(&path).await.map_err(rest::internal_error)?;
+    let file = fs::File::open(&path)
+        .await
+        .map_err(rest::error::internal_error)?;
 
     // Stream the file to the client
     let stream = ReaderStream::new(file);
