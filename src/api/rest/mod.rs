@@ -1,11 +1,10 @@
 use axum::http::StatusCode;
 use axum::response::{Html, IntoResponse};
-use log::{error, info, warn};
+use log::{info, warn};
 use std::path::PathBuf;
 use std::{net::SocketAddr, sync::Arc};
 use tokio::net::TcpListener;
 use tokio::signal;
-use uuid::Uuid;
 
 mod device;
 mod device_key;
@@ -31,7 +30,7 @@ pub struct RestApi {
 
 async fn api_key_mw(
     axum::extract::State(state): axum::extract::State<RestApiConfig>,
-    mut req: axum::http::Request<axum::body::Body>,
+    req: axum::http::Request<axum::body::Body>,
     next: axum::middleware::Next,
 ) -> axum::response::Response {
     let unauthorized = || {

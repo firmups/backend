@@ -11,7 +11,7 @@ use diesel::SelectableHelper;
 use diesel::query_dsl::methods::{FilterDsl, SelectDsl};
 use diesel::result::DatabaseErrorKind;
 use diesel_async::RunQueryDsl;
-use log::{debug, warn};
+use log::warn;
 use sha2::{Digest, Sha256};
 use tokio::fs;
 use tokio_util::io::ReaderStream;
