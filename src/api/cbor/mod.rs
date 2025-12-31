@@ -1,8 +1,9 @@
-use crate::codec::operation::OperationType;
 use crate::db::models::{
     Device, DeviceType, DeviceTypeFirmware, Firmware, NewDevice, NewDeviceType,
     NewDeviceTypeFirmware, NewFirmware,
 };
+use codec::cose;
+use codec::operation;
 use diesel::QueryDsl;
 use diesel::SelectableHelper;
 use diesel::prelude::*;
@@ -15,6 +16,8 @@ use tokio::net::UdpSocket;
 use tokio::{fs, io, select};
 use tokio_util::sync::CancellationToken;
 
+mod codec;
+
 #[derive(Clone)]
 pub struct CborApiConfig {
     pub listen_address: SocketAddr,
@@ -26,6 +29,19 @@ pub struct CborApi {
     config: CborApiConfig,
     joiner: Option<tokio::task::JoinHandle<()>>,
     cancel: CancellationToken,
+}
+
+pub enum CborApiInternalError {
+    DecodeError,
+    EncodeError,
+    EncryptionError,
+    DecryptionError,
+}
+
+pub enum CborApiError {
+    InternalError(CborApiInternalError),
+    InvalidMessage,
+    UnsupportedOperation,
 }
 
 impl CborApi {
@@ -64,7 +80,7 @@ async fn udp_loop(socket: UdpSocket, config: CborApiConfig, cancellation_token: 
 
     loop {
         select! {
-            res = socket.recv_from(&mut buf) => {
+            res = socket.recv_from(&mut buf[..]) => {
                 let (len, addr) = match res {
                     Ok(v) => v,
                     Err(e) => {
@@ -72,7 +88,7 @@ async fn udp_loop(socket: UdpSocket, config: CborApiConfig, cancellation_token: 
                         continue;
                     }
                 };
-                let cose_handler = crate::codec::cose::CoseHandler::new([0u8; 16].to_vec());
+                let cose_handler = cose::CoseHandler::new([0u8; 16].to_vec());
                 let mut opcode: u16 = 0;
                 let mut device_id: u32 = 0;
 
@@ -85,11 +101,11 @@ async fn udp_loop(socket: UdpSocket, config: CborApiConfig, cancellation_token: 
                         }
                     };
 
-                let opcode_type = OperationType::from(opcode);
+                let opcode_type = operation::OperationType::from(opcode);
 
                 match opcode_type {
-                    OperationType::GetParameterRequest => {
-                        let req = match crate::codec::operation::decode_get_parameter_request(&operation_bytes[..])
+                    operation::OperationType::GetParameterRequest => {
+                        let req = match operation::decode_get_parameter_request(&operation_bytes[..])
                         {
                             Ok(r) => r,
                             Err(e) => {
@@ -103,13 +119,13 @@ async fn udp_loop(socket: UdpSocket, config: CborApiConfig, cancellation_token: 
 
                         // Build a response (example)
                         let param_value: u64 = 42;
-                        let response = crate::codec::operation::GetParameterResponse {
+                        let response = operation::GetParameterResponse {
                             parameter_id: param_id,
                             parameter_type: param_type,
                             parameter_value: param_value.to_be_bytes().to_vec(),
                         };
 
-                        let operation_buf = match crate::codec::operation::encode_get_parameter_response(&response)
+                        let operation_buf = match operation::encode_get_parameter_response(&response)
                         {
                             Ok(b) => b,
                             Err(e) => {
@@ -120,7 +136,7 @@ async fn udp_loop(socket: UdpSocket, config: CborApiConfig, cancellation_token: 
 
                         let response_buf = match cose_handler.encode_msg(
                             device_id,
-                            crate::codec::operation::OperationType::GetParameterResponse as u16,
+                            operation::OperationType::GetParameterResponse as u16,
                             &operation_buf[..],
                         ) {
                             Ok(b) => b,
@@ -137,10 +153,10 @@ async fn udp_loop(socket: UdpSocket, config: CborApiConfig, cancellation_token: 
                             info!("Sent GetParameterResponse");
                         }
                     }
-                    OperationType::GetDeviceInfoRequest => {
+                    operation::OperationType::GetDeviceInfoRequest => {
                         use crate::db::schema::device::dsl::*;
 
-                        let req = match crate::codec::operation::decode_get_device_info_request(&operation_bytes[..])
+                        let req = match operation::decode_get_device_info_request(&operation_bytes[..])
                         {
                             Ok(r) => r,
                             Err(e) => {
@@ -159,13 +175,13 @@ async fn udp_loop(socket: UdpSocket, config: CborApiConfig, cancellation_token: 
                             .first(&mut conn)
                             .await.unwrap();
 
-                        let response = crate::codec::operation::GetDeviceInfoResponse {
+                        let response = operation::GetDeviceInfoResponse {
                             firmware: result.firmware.unwrap() as u32,
                             desired_firmware: result.desired_firmware as u32,
                             status: result.status as u8,
                         };
 
-                        let operation_buf = match crate::codec::operation::encode_get_device_info_response(&response)
+                        let operation_buf = match operation::encode_get_device_info_response(&response)
                         {
                             Ok(b) => b,
                             Err(e) => {
@@ -176,7 +192,7 @@ async fn udp_loop(socket: UdpSocket, config: CborApiConfig, cancellation_token: 
 
                         let response_buf = match cose_handler.encode_msg(
                             device_id,
-                            crate::codec::operation::OperationType::GetDeviceInfoResponse as u16,
+                            operation::OperationType::GetDeviceInfoResponse as u16,
                             &operation_buf[..],
                         ) {
                             Ok(b) => b,
@@ -193,10 +209,10 @@ async fn udp_loop(socket: UdpSocket, config: CborApiConfig, cancellation_token: 
                             info!("Sent GetDeviceInfoResponse");
                         }
                     }
-                    OperationType::GetFirmwareRequest => {
+                    operation::OperationType::GetFirmwareRequest => {
                         use crate::db::schema::firmware::dsl::*;
 
-                        let req = match crate::codec::operation::decode_get_firmware_request(&operation_bytes[..])
+                        let req = match operation::decode_get_firmware_request(&operation_bytes[..])
                         {
                             Ok(r) => r,
                             Err(e) => {
@@ -228,14 +244,14 @@ async fn udp_loop(socket: UdpSocket, config: CborApiConfig, cancellation_token: 
                         let read = file.read(&mut buf).await.unwrap();
                         buf.truncate(read);
 
-                        let response = crate::codec::operation::GetFirmwareResponse {
+                        let response = operation::GetFirmwareResponse {
                             firmware: result.id as u32,
                             offset: req.offset.unwrap() as u32,
                             length: read as u32,
                             data: buf,
                         };
 
-                        let operation_buf = match crate::codec::operation::encode_get_firmware_response(&response)
+                        let operation_buf = match operation::encode_get_firmware_response(&response)
                         {
                             Ok(b) => b,
                             Err(e) => {
@@ -246,7 +262,7 @@ async fn udp_loop(socket: UdpSocket, config: CborApiConfig, cancellation_token: 
 
                         let response_buf = match cose_handler.encode_msg(
                             device_id,
-                            crate::codec::operation::OperationType::GetFirmwareResponse as u16,
+                            operation::OperationType::GetFirmwareResponse as u16,
                             &operation_buf[..],
                         ) {
                             Ok(b) => b,

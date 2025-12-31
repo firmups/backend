@@ -9,8 +9,6 @@ use tracing_appender::rolling::{RollingFileAppender, Rotation};
 use tracing_subscriber::{EnvFilter, fmt, layer::SubscriberExt, util::SubscriberInitExt};
 
 mod api;
-mod codec;
-mod crypto;
 mod db;
 
 type DbPool = bb8::Pool<AsyncPgConnection>;

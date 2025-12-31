@@ -12,6 +12,7 @@ pub enum OperationType {
     SetDeviceInfoResponse = 8,
     GetFirmwareRequest = 9,
     GetFirmwareResponse = 10,
+    Error = 255,
 }
 
 impl From<u16> for OperationType {
@@ -27,6 +28,7 @@ impl From<u16> for OperationType {
             8 => OperationType::SetDeviceInfoResponse,
             9 => OperationType::GetFirmwareRequest,
             10 => OperationType::GetFirmwareResponse,
+            255 => OperationType::Error,
             _ => OperationType::Invalid,
         }
     }

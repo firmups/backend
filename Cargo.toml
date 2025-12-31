@@ -26,3 +26,4 @@ tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
 tracing-appender = "0.2.4"
 base64 = "0.22.1"
 thiserror = "2.0.17"
+zeroize = "1.8.2"
