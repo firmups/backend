@@ -88,7 +88,7 @@ async fn udp_loop(socket: UdpSocket, config: CborApiConfig, cancellation_token: 
                         continue;
                     }
                 };
-                let cose_handler = cose::CoseHandler::new([0u8; 16].to_vec());
+                let mut cose_handler = cose::CoseHandler::new([0u8; 16].to_vec());
                 let mut opcode: u16 = 0;
                 let mut device_id: u32 = 0;
 

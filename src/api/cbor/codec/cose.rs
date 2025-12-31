@@ -3,12 +3,8 @@ use log::debug;
 use minicbor::Decoder;
 use minicbor::Encoder;
 use minicbor::encode::write::Cursor;
+use std::collections::HashMap;
 use zeroize::Zeroize;
-
-enum EncryptionAlgorithm {
-    Aes128Gcm = 1,
-    AsconAead128 = 35,
-}
 
 enum ProtectedHeaderKey {
     EncryptionAlgorithm = 1,
@@ -32,6 +28,7 @@ impl From<u16> for ProtectedHeaderKey {
     }
 }
 
+#[derive(Clone, Copy)]
 enum CoseAlgorithmIdentifier {
     Aes128Gcm = 1,
     AsconAead128 = 35,
@@ -51,14 +48,14 @@ impl From<u16> for CoseAlgorithmIdentifier {
 struct ProtectedHeaderDecode {
     device_id: Option<u32>,
     opcode: Option<u16>,
-    encryption_algorithm: Option<EncryptionAlgorithm>,
+    encryption_algorithm: Option<CoseAlgorithmIdentifier>,
     nonce: Option<Vec<u8>>,
 }
 
 struct ProtectedHeader {
     device_id: u32,
     opcode: u16,
-    encryption_algorithm: EncryptionAlgorithm,
+    encryption_algorithm: CoseAlgorithmIdentifier,
     nonce: Vec<u8>,
 }
 
@@ -100,6 +97,8 @@ impl TryFrom<ProtectedHeaderDecode> for ProtectedHeader {
 
 pub struct CoseHandler {
     key_bytes: Vec<u8>,
+    algs: HashMap<crypto::CryptoAlgorithm, Box<dyn crypto::CryptoAead>>,
+    crypto_algo: Option<CoseAlgorithmIdentifier>,
 }
 
 impl Drop for CoseHandler {
@@ -110,11 +109,26 @@ impl Drop for CoseHandler {
 
 impl CoseHandler {
     pub fn new(key_bytes: Vec<u8>) -> Self {
-        CoseHandler { key_bytes }
+        let mut algs: HashMap<crypto::CryptoAlgorithm, Box<dyn crypto::CryptoAead>> =
+            HashMap::new();
+        algs.insert(
+            crypto::CryptoAlgorithm::AsconAead128,
+            Box::new(crypto::crypto_ascon::CryptoAsconAead128),
+        );
+        algs.insert(
+            crypto::CryptoAlgorithm::Aes128Gcm,
+            Box::new(crypto::crypto_aes::CryptoAes128Gcm),
+        );
+
+        CoseHandler {
+            key_bytes,
+            algs,
+            crypto_algo: None,
+        }
     }
 
     pub fn decode_msg(
-        &self,
+        &mut self,
         device_id: &mut u32,
         opcode: &mut u16,
         msg: &[u8],
@@ -129,6 +143,23 @@ impl CoseHandler {
         let protected_header_buffer = decoder.bytes()?;
         let protected_header_decode = decode_protected_header(protected_header_buffer)?;
         let protected_header = ProtectedHeader::try_from(protected_header_decode)?;
+        self.crypto_algo = Some(protected_header.encryption_algorithm.clone());
+        let crypto_alg = self
+            .algs
+            .get(&match protected_header.encryption_algorithm {
+                CoseAlgorithmIdentifier::Aes128Gcm => crypto::CryptoAlgorithm::Aes128Gcm,
+                CoseAlgorithmIdentifier::AsconAead128 => crypto::CryptoAlgorithm::AsconAead128,
+                CoseAlgorithmIdentifier::Unknown => {
+                    return Err(minicbor::decode::Error::message(
+                        "Unsupported encryption algorithm",
+                    ));
+                }
+            })
+            .ok_or_else(|| minicbor::decode::Error::message("Unsupported encryption algorithm"))?;
+
+        if protected_header.nonce.len() != crypto_alg.nonce_len() {
+            return Err(minicbor::decode::Error::message("Invalid nonce length"));
+        }
 
         if decoder.map()? != Some(0) {
             return Err(minicbor::decode::Error::message(
@@ -137,48 +168,23 @@ impl CoseHandler {
         }
 
         let encrypted_operation_buffer = decoder.bytes()?;
-        match protected_header.encryption_algorithm {
-            EncryptionAlgorithm::Aes128Gcm => {
-                let res = crypto::crypto_aes::decrypt_operation_aes(
-                    encrypted_operation_buffer,
-                    protected_header_buffer,
-                    &protected_header.nonce,
-                    &self.key_bytes,
-                );
-                match res {
-                    Ok(vec) => {
-                        *device_id = protected_header.device_id;
-                        *opcode = protected_header.opcode;
-                        return Ok(vec);
-                    }
-                    Err(_) => {
-                        return Err(minicbor::decode::Error::message("Decryption failed"));
-                    }
-                }
-            }
-            EncryptionAlgorithm::AsconAead128 => {
-                let res = crypto::crypto_ascon::decrypt_operation_ascon(
-                    encrypted_operation_buffer,
-                    protected_header_buffer,
-                    &protected_header.nonce,
-                    &self.key_bytes,
-                );
-                match res {
-                    Ok(vec) => {
-                        debug!(
-                            "Decoded COSE message with opcode {:?}",
-                            protected_header.opcode
-                        );
-                        *device_id = protected_header.device_id;
-                        *opcode = protected_header.opcode;
-                        return Ok(vec);
-                    }
-                    Err(_) => {
-                        return Err(minicbor::decode::Error::message("Decryption failed"));
-                    }
-                }
-            }
-        }
+
+        let pt = crypto_alg
+            .decrypt(
+                &self.key_bytes,
+                &protected_header.nonce,
+                protected_header_buffer,
+                encrypted_operation_buffer,
+            )
+            .map_err(|_| minicbor::decode::Error::message("Decryption failed"))?;
+
+        *device_id = protected_header.device_id;
+        *opcode = protected_header.opcode;
+        debug!(
+            "Decrypted operation with opcode: {}",
+            protected_header.opcode
+        );
+        Ok(pt)
     }
 
     pub fn encode_msg(
@@ -187,44 +193,52 @@ impl CoseHandler {
         operation_id: u16,
         operation: &[u8],
     ) -> Result<Vec<u8>, minicbor::encode::Error<minicbor::encode::write::EndOfArray>> {
+        let Some(crypto_alg_identifier) = self.crypto_algo else {
+            return Err(minicbor::encode::Error::message(
+                "Message needs to be decoded first to determine crypto algorithm",
+            ));
+        };
+
         let mut cursor: Cursor<[u8; 1024]> = Cursor::new([0u8; 1024]);
         let mut enc = Encoder::new(&mut cursor);
-
-        let mut nonce = [0u8; 16];
+        let crypto_alg = self
+            .algs
+            .get(&match crypto_alg_identifier {
+                CoseAlgorithmIdentifier::Aes128Gcm => crypto::CryptoAlgorithm::Aes128Gcm,
+                CoseAlgorithmIdentifier::AsconAead128 => crypto::CryptoAlgorithm::AsconAead128,
+                CoseAlgorithmIdentifier::Unknown => {
+                    return Err(minicbor::encode::Error::message(
+                        "Unsupported encryption algorithm",
+                    ));
+                }
+            })
+            .ok_or_else(|| minicbor::encode::Error::message("Unsupported encryption algorithm"))?;
+        let mut nonce = vec![0u8; crypto_alg.nonce_len()];
         getrandom::fill(&mut nonce[..])
             .map_err(|_| minicbor::encode::Error::message("Randomness failed"))?;
-
         let protected_header = ProtectedHeader {
             device_id: device_id,
-            opcode: operation_id,
-            encryption_algorithm: EncryptionAlgorithm::AsconAead128,
+            opcode: operation_id.clone(),
+            encryption_algorithm: crypto_alg_identifier,
             nonce: nonce.to_vec(),
         };
 
         let protected_header_buf = encode_protected_header(protected_header)?;
         debug!("protected header size: {}", protected_header_buf.len());
-        let crypto_result = crypto::crypto_ascon::encrypt_operation_ascon(
-            operation,
-            &protected_header_buf,
-            &nonce[..],
-            &self.key_bytes,
-        );
-        let ciphertext = match crypto_result {
-            Ok(ct) => ct,
-            Err(_) => {
-                return Err(minicbor::encode::Error::message("Encryption failed"));
-            }
-        };
-        debug!("Ciphertext size: {}", ciphertext.len());
+        let ct = crypto_alg
+            .encrypt(&self.key_bytes, &nonce, &protected_header_buf, operation)
+            .map_err(|_| minicbor::encode::Error::message("Encryption failed"))?;
+        debug!("Ciphertext size: {}", ct.len());
 
         enc.array(3)?;
         enc.bytes(&protected_header_buf)?;
         enc.map(0)?;
-        enc.bytes(&ciphertext)?;
+        enc.bytes(&ct)?;
 
         let pos = cursor.position() as usize;
         let inner = cursor.into_inner();
 
+        debug!("Encrypted operation with opcode: {}", operation_id);
         Ok(inner[..pos].to_vec())
     }
 }
@@ -275,9 +289,9 @@ fn decode_protected_header(
             ProtectedHeaderKey::EncryptionAlgorithm => {
                 let alg = decoder.u16()?;
                 header.encryption_algorithm = match CoseAlgorithmIdentifier::from(alg) {
-                    CoseAlgorithmIdentifier::Aes128Gcm => Some(EncryptionAlgorithm::Aes128Gcm),
+                    CoseAlgorithmIdentifier::Aes128Gcm => Some(CoseAlgorithmIdentifier::Aes128Gcm),
                     CoseAlgorithmIdentifier::AsconAead128 => {
-                        Some(EncryptionAlgorithm::AsconAead128)
+                        Some(CoseAlgorithmIdentifier::AsconAead128)
                     }
                     _ => {
                         return Err(minicbor::decode::Error::message(

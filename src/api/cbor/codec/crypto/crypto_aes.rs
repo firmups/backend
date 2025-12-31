@@ -1,24 +1,77 @@
+use crate::api::cbor::codec::crypto;
 use aes_gcm::{
-    Aes128Gcm, Error, Key, Nonce,
+    Aes128Gcm, Key, Nonce,
     aead::{Aead, KeyInit, Payload},
 };
 
-pub fn decrypt_operation_aes(
-    encrypted_operation_buffer: &[u8],
-    aad_bytes: &[u8],
-    nonce_bytes: &[u8],
-    key_bytes: &[u8],
-) -> Result<Vec<u8>, Error> {
-    let key = Key::<Aes128Gcm>::from_slice(key_bytes);
-    let cipher = Aes128Gcm::new(key);
-    let nonce = Nonce::from_slice(nonce_bytes); // 96-bits; unique per message
+pub struct CryptoAes128Gcm;
 
-    let payload: Payload = Payload {
-        msg: encrypted_operation_buffer,
-        aad: aad_bytes,
-    };
+impl crypto::CryptoAead for CryptoAes128Gcm {
+    fn alg_id(&self) -> crypto::CryptoAlgorithm {
+        crypto::CryptoAlgorithm::Aes128Gcm
+    }
 
-    let plaintext = cipher.decrypt(nonce, payload)?;
+    fn nonce_len(&self) -> usize {
+        12
+    }
 
-    Ok(plaintext)
+    fn encrypt(
+        &self,
+        key: &[u8],
+        nonce: &[u8],
+        aad: &[u8],
+        plaintext: &[u8],
+    ) -> Result<Vec<u8>, crypto::CryptoError> {
+        if key.len() != 16 {
+            return Err(crypto::CryptoError::KeyError);
+        }
+        if nonce.len() != self.nonce_len() {
+            return Err(crypto::CryptoError::NonceError);
+        }
+
+        let key = Key::<Aes128Gcm>::from_slice(key);
+        let nonce = Nonce::from_slice(nonce);
+        let cipher = Aes128Gcm::new(key);
+
+        let payload: Payload = Payload {
+            msg: plaintext,
+            aad: aad,
+        };
+
+        let ciphertext = cipher
+            .encrypt(nonce, payload)
+            .map_err(|_| crypto::CryptoError::EncryptionError)?;
+
+        Ok(ciphertext)
+    }
+
+    fn decrypt(
+        &self,
+        key: &[u8],
+        nonce: &[u8],
+        aad: &[u8],
+        ciphertext: &[u8],
+    ) -> Result<Vec<u8>, crypto::CryptoError> {
+        if key.len() != 16 {
+            return Err(crypto::CryptoError::KeyError);
+        }
+        if nonce.len() != self.nonce_len() {
+            return Err(crypto::CryptoError::NonceError);
+        }
+
+        let key = Key::<Aes128Gcm>::from_slice(key);
+        let nonce = Nonce::from_slice(nonce);
+        let cipher = Aes128Gcm::new(key);
+
+        let payload: Payload = Payload {
+            msg: ciphertext,
+            aad: aad,
+        };
+
+        let plaintext = cipher
+            .decrypt(nonce, payload)
+            .map_err(|_| crypto::CryptoError::DecryptionError)?;
+
+        Ok(plaintext)
+    }
 }

@@ -1,46 +1,67 @@
+use crate::api::cbor::codec::crypto;
 use ascon_aead128::{
-    AsconAead128, Error, Key, Nonce,
+    AsconAead128, Key, Nonce,
     aead::{Aead, KeyInit, Payload},
 };
 
-pub fn decrypt_operation_ascon(
-    encrypted_operation_buffer: &[u8],
-    aad_bytes: &[u8],
-    nonce_bytes: &[u8],
-    key_bytes: &[u8],
-) -> Result<Vec<u8>, Error> {
-    let key = Key::<AsconAead128>::try_from(key_bytes).expect("Invalid key length");
-    let nonce = Nonce::<AsconAead128>::try_from(nonce_bytes).expect("Invalid nonce length");
-    let cipher = AsconAead128::new(&key);
+pub struct CryptoAsconAead128;
 
-    let plaintext = cipher.decrypt(
-        &nonce,
-        Payload {
-            msg: encrypted_operation_buffer,
-            aad: aad_bytes,
-        },
-    )?;
+impl crypto::CryptoAead for CryptoAsconAead128 {
+    fn alg_id(&self) -> crypto::CryptoAlgorithm {
+        crypto::CryptoAlgorithm::AsconAead128
+    }
 
-    Ok(plaintext)
-}
+    fn nonce_len(&self) -> usize {
+        16
+    }
 
-pub fn encrypt_operation_ascon(
-    operation_buffer: &[u8],
-    aad_bytes: &[u8],
-    nonce_bytes: &[u8],
-    key_bytes: &[u8],
-) -> Result<Vec<u8>, Error> {
-    let key = Key::<AsconAead128>::try_from(key_bytes).expect("Invalid key length");
-    let nonce = Nonce::<AsconAead128>::try_from(nonce_bytes).expect("Invalid nonce length");
-    let cipher = AsconAead128::new(&key);
+    fn encrypt(
+        &self,
+        key: &[u8],
+        nonce: &[u8],
+        aad: &[u8],
+        plaintext: &[u8],
+    ) -> Result<Vec<u8>, crypto::CryptoError> {
+        let key = Key::<AsconAead128>::try_from(key).map_err(|_| crypto::CryptoError::KeyError)?;
+        let nonce =
+            Nonce::<AsconAead128>::try_from(nonce).map_err(|_| crypto::CryptoError::NonceError)?;
+        let cipher = AsconAead128::new(&key);
 
-    let plaintext = cipher.encrypt(
-        &nonce,
-        Payload {
-            msg: operation_buffer,
-            aad: aad_bytes,
-        },
-    )?;
+        let ciphertext = cipher
+            .encrypt(
+                &nonce,
+                Payload {
+                    msg: plaintext,
+                    aad: aad,
+                },
+            )
+            .map_err(|_| crypto::CryptoError::EncryptionError)?;
 
-    Ok(plaintext)
+        Ok(ciphertext)
+    }
+
+    fn decrypt(
+        &self,
+        key: &[u8],
+        nonce: &[u8],
+        aad: &[u8],
+        ciphertext: &[u8],
+    ) -> Result<Vec<u8>, crypto::CryptoError> {
+        let key = Key::<AsconAead128>::try_from(key).map_err(|_| crypto::CryptoError::KeyError)?;
+        let nonce =
+            Nonce::<AsconAead128>::try_from(nonce).map_err(|_| crypto::CryptoError::NonceError)?;
+        let cipher = AsconAead128::new(&key);
+
+        let plaintext = cipher
+            .decrypt(
+                &nonce,
+                Payload {
+                    msg: ciphertext,
+                    aad: aad,
+                },
+            )
+            .map_err(|_| crypto::CryptoError::DecryptionError)?;
+
+        Ok(plaintext)
+    }
 }
