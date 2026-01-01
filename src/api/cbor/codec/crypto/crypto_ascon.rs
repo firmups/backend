@@ -15,6 +15,10 @@ impl crypto::CryptoAead for CryptoAsconAead128 {
         16
     }
 
+    fn tag_len(&self) -> usize {
+        16
+    }
+
     fn encrypt(
         &self,
         key: &[u8],

@@ -17,6 +17,7 @@ use diesel::NullableExpressionMethods;
 use diesel::QueryDsl;
 use diesel::SelectableHelper;
 use diesel_async::{AsyncConnection, RunQueryDsl};
+use log::info;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -111,9 +112,28 @@ pub async fn create_device_key(
             Box::pin(async move {
                 let kind: DeviceKeyKind;
                 let key_type: KeyType;
+                let mut key_status: KeyStatus = KeyStatus::NEXT;
+
+                // Lock device to prevent multiple keys being created simultaneously
+                diesel::dsl::sql_query("SELECT pg_advisory_xact_lock($1)")
+                            .bind::<diesel::sql_types::BigInt, _>(device_id as i64)
+                            .execute(&mut conn)
+                            .await?;
+
                 match payload.kind.clone() {
-                    NewDeviceKeyKind::Lightweight { details: _ } => {
+                    NewDeviceKeyKind::Lightweight { details: det } => {
                         key_type = KeyType::LIGHTWEIGHT;
+                        if det.key.len() != 16 /* ToDo: Replace magic number */ {
+                            return Err(rest::error::TransactionError::from(
+                                rest::error::client_error(
+                                    StatusCode::BAD_REQUEST,
+                                    format!(
+                                        "Invalid key length {} for lightweight key",
+                                        det.key.len()
+                                    ),
+                                ),
+                            ));
+                        }
                     }
                     NewDeviceKeyKind::Tls { details: _ } => {
                         key_type = KeyType::TLS;
@@ -137,11 +157,24 @@ pub async fn create_device_key(
                         ),
                     ));
                 }
+                let active_filter = key_dsl::device_key
+                    .filter(key_dsl::device.eq(device_id))
+                    .filter(key_dsl::status.eq(KeyStatus::ACTIVE));
+                let active_exists: bool = diesel::select(diesel::dsl::exists(active_filter))
+                    .get_result(conn)
+                    .await?;
+                if !active_exists {
+                    info!(
+                        "No ACTIVE key on device {}, setting new key to ACTIVE (initial provisioning)",
+                        device_id
+                    );
+                    key_status = KeyStatus::ACTIVE;
+                }
 
                 let new_device_key = crate::db::models::NewDeviceKey {
                     device: device_id,
                     key_type: key_type,
-                    status: KeyStatus::NEXT,
+                    status: key_status,
                 };
                 let device_key: DeviceKey = diesel::insert_into(key_dsl::device_key)
                     .values(&new_device_key)

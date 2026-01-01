@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: FIRMUPS Server API
-  version: '0.1.0'
+  version: "0.1.0"
   description: |
     The firmups server API allows for device and update management.
   license:
@@ -34,15 +34,15 @@ paths:
       summary: List all device types
       operationId: listDeviceTypes
       responses:
-        '200':
+        "200":
           description: Successful operation
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/DeviceType'
-        '500':
+                  $ref: "#/components/schemas/DeviceType"
+        "500":
           description: Internal error
           content:
             application/json:
@@ -59,34 +59,34 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/NewDeviceType'
+              $ref: "#/components/schemas/NewDeviceType"
       responses:
-        '201':
+        "201":
           description: Device type created
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/DeviceType'
-        '400':
+                $ref: "#/components/schemas/DeviceType"
+        "400":
           description: Invalid name provided
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
-        '409':
+        "409":
           description: Device type already exists
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
-        '422':
+        "422":
           description: Input data could not be parsed
           content:
             application/json:
               schema:
                 type: string
                 description: Parse error description
-        '500':
+        "500":
           description: Internal error
           content:
             application/json:
@@ -108,19 +108,19 @@ paths:
           schema:
             type: integer
       responses:
-        '200':
+        "200":
           description: Successful operation
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/DeviceType'
-        '404':
+                $ref: "#/components/schemas/DeviceType"
+        "404":
           description: Device type not found
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '500':
+                $ref: "#/components/schemas/Error"
+        "500":
           description: Internal error
           content:
             application/json:
@@ -144,40 +144,40 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/UpdateDeviceType'
+              $ref: "#/components/schemas/UpdateDeviceType"
       responses:
-        '200':
+        "200":
           description: Device type updated
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/DeviceType'
-        '400':
+                $ref: "#/components/schemas/DeviceType"
+        "400":
           description: Invalid name provided
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
-        '404':
+        "404":
           description: Device type not found
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '409':
+                $ref: "#/components/schemas/Error"
+        "409":
           description: Device type already exists
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
-        '422':
+        "422":
           description: Input data could not be parsed
           content:
             application/json:
               schema:
                 type: string
                 description: Parse error description
-        '500':
+        "500":
           description: Internal error
           content:
             application/json:
@@ -198,19 +198,19 @@ paths:
           schema:
             type: integer
       responses:
-        '200':
+        "200":
           description: Successful operation
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/DeviceType'
-        '404':
+                $ref: "#/components/schemas/DeviceType"
+        "404":
           description: Device type not found
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '500':
+                $ref: "#/components/schemas/Error"
+        "500":
           description: Internal error
           content:
             application/json:
@@ -225,15 +225,15 @@ paths:
       summary: List all devices
       operationId: listDevices
       responses:
-        '200':
+        "200":
           description: Successful operation
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/Device'
-        '500':
+                  $ref: "#/components/schemas/Device"
+        "500":
           description: Internal error
           content:
             application/json:
@@ -250,34 +250,34 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/NewDevice'
+              $ref: "#/components/schemas/NewDevice"
       responses:
-        '201':
+        "201":
           description: Device created
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Device'
-        '400':
+                $ref: "#/components/schemas/Device"
+        "400":
           description: Invalid input data provided
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
-        '409':
+        "409":
           description: Device already exists
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
-        '422':
+        "422":
           description: Input data could not be parsed
           content:
             application/json:
               schema:
                 type: string
                 description: Parse error description
-        '500':
+        "500":
           description: Internal error
           content:
             application/json:
@@ -299,19 +299,19 @@ paths:
           schema:
             type: integer
       responses:
-        '200':
+        "200":
           description: Successful operation
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Device'
-        '404':
+                $ref: "#/components/schemas/Device"
+        "404":
           description: Device not found
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '500':
+                $ref: "#/components/schemas/Error"
+        "500":
           description: Internal error
           content:
             application/json:
@@ -335,40 +335,40 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/UpdateDevice'
+              $ref: "#/components/schemas/UpdateDevice"
       responses:
-        '200':
+        "200":
           description: Device updated
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Device'
-        '400':
+                $ref: "#/components/schemas/Device"
+        "400":
           description: Invalid input data provided
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
-        '404':
+        "404":
           description: Device not found
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '409':
+                $ref: "#/components/schemas/Error"
+        "409":
           description: Device already exists
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
-        '422':
+        "422":
           description: Input data could not be parsed
           content:
             application/json:
               schema:
                 type: string
                 description: Parse error description
-        '500':
+        "500":
           description: Internal error
           content:
             application/json:
@@ -389,19 +389,19 @@ paths:
           schema:
             type: integer
       responses:
-        '200':
+        "200":
           description: Successful operation
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Device'
-        '404':
+                $ref: "#/components/schemas/Device"
+        "404":
           description: Device not found
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '500':
+                $ref: "#/components/schemas/Error"
+        "500":
           description: Internal error
           content:
             application/json:
@@ -423,21 +423,21 @@ paths:
           schema:
             type: integer
       responses:
-        '200':
+        "200":
           description: Successful operation
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/DeviceKey'
-        '404':
+                  $ref: "#/components/schemas/DeviceKey"
+        "404":
           description: Device not found
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '500':
+                $ref: "#/components/schemas/Error"
+        "500":
           description: Internal error
           content:
             application/json:
@@ -461,34 +461,34 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/NewDeviceKey'
+              $ref: "#/components/schemas/NewDeviceKey"
       responses:
-        '201':
+        "201":
           description: Device type created
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/DeviceKey'
-        '404':
+                $ref: "#/components/schemas/DeviceKey"
+        "404":
           description: Device not found
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '409':
+                $ref: "#/components/schemas/Error"
+        "409":
           description: Key with state "NEXT" already present on device
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '422':
+                $ref: "#/components/schemas/Error"
+        "422":
           description: Input data could not be parsed
           content:
             application/json:
               schema:
                 type: string
                 description: Parse error description
-        '500':
+        "500":
           description: Internal error
           content:
             application/json:
@@ -516,19 +516,19 @@ paths:
           schema:
             type: integer
       responses:
-        '200':
+        "200":
           description: Successful operation
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/DeviceType'
-        '404':
+                $ref: "#/components/schemas/DeviceType"
+        "404":
           description: Device type not found
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '500':
+                $ref: "#/components/schemas/Error"
+        "500":
           description: Internal error
           content:
             application/json:
@@ -555,19 +555,19 @@ paths:
           schema:
             type: integer
       responses:
-        '200':
+        "200":
           description: Successful operation
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/DeviceType'
-        '404':
+                $ref: "#/components/schemas/DeviceType"
+        "404":
           description: Device type not found
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '500':
+                $ref: "#/components/schemas/Error"
+        "500":
           description: Internal error
           content:
             application/json:
@@ -582,15 +582,15 @@ paths:
       summary: List all firmwares
       operationId: listFirmwares
       responses:
-        '200':
+        "200":
           description: Successful operation
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/Firmware'
-        '500':
+                  $ref: "#/components/schemas/Firmware"
+        "500":
           description: Internal error
           content:
             application/json:
@@ -608,34 +608,34 @@ paths:
         content:
           multipart/form-data:
             schema:
-              $ref: '#/components/schemas/NewFirmware'
+              $ref: "#/components/schemas/NewFirmware"
       responses:
-        '201':
+        "201":
           description: Firmware
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Firmware'
-        '400':
+                $ref: "#/components/schemas/Firmware"
+        "400":
           description: Invalid input data provided
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
-        '409':
+        "409":
           description: Firmware already exists
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
-        '422':
+        "422":
           description: Input data could not be parsed
           content:
             application/json:
               schema:
                 type: string
                 description: Parse error description
-        '500':
+        "500":
           description: Internal error
           content:
             application/json:
@@ -657,19 +657,19 @@ paths:
           schema:
             type: integer
       responses:
-        '200':
+        "200":
           description: Successful operation
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Firmware'
-        '404':
+                $ref: "#/components/schemas/Firmware"
+        "404":
           description: Firmware not found
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '500':
+                $ref: "#/components/schemas/Error"
+        "500":
           description: Internal error
           content:
             application/json:
@@ -690,19 +690,19 @@ paths:
           schema:
             type: integer
       responses:
-        '200':
+        "200":
           description: Successful operation
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Firmware'
-        '404':
+                $ref: "#/components/schemas/Firmware"
+        "404":
           description: Firmware not found
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '500':
+                $ref: "#/components/schemas/Error"
+        "500":
           description: Internal error
           content:
             application/json:
@@ -735,24 +735,24 @@ paths:
               description: Suggested filename
               schema:
                 type: string
-                examples: ["attachment; filename=\"myfw-1.2.3-42.bin\""]
+                examples: ['attachment; filename="myfw-1.2.3-42.bin"']
             ETag:
               description: Strong ETag of the artifact (e.g., quoted SHA-256)
               schema:
                 type: string
-                examples: ["\"3d1b6f...\""]
+                examples: ['"3d1b6f..."']
             Content-Length:
               description: Total size in bytes
               schema:
                 type: integer
                 format: int64
-        '404':
+        "404":
           description: Firmware not found
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '500':
+                $ref: "#/components/schemas/Error"
+        "500":
           description: Internal error
           content:
             application/json:
@@ -784,12 +784,12 @@ paths:
               description: Suggested filename
               schema:
                 type: string
-                examples: ["attachment; filename=\"myfw-1.2.3-42.bin\""]
+                examples: ['attachment; filename="myfw-1.2.3-42.bin"']
             ETag:
               description: Strong ETag of the artifact (e.g., quoted SHA-256)
               schema:
                 type: string
-                examples: ["\"3d1b6f...\""]
+                examples: ['"3d1b6f..."']
             Content-Length:
               description: Total size in bytes
               schema:
@@ -800,13 +800,13 @@ paths:
               schema:
                 type: string
                 format: binary
-        '404':
+        "404":
           description: Firmware not found
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '500':
+                $ref: "#/components/schemas/Error"
+        "500":
           description: Internal error
           content:
             application/json:
@@ -821,15 +821,15 @@ paths:
       summary: List all device type <-> firmware linkings
       operationId: listDeviceTypeFirmwares
       responses:
-        '200':
+        "200":
           description: Successful operation
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/DeviceTypeFirmware'
-        '500':
+                  $ref: "#/components/schemas/DeviceTypeFirmware"
+        "500":
           description: Internal error
           content:
             application/json:
@@ -846,34 +846,34 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/NewDeviceTypeFirmware'
+              $ref: "#/components/schemas/NewDeviceTypeFirmware"
       responses:
-        '201':
+        "201":
           description: Device type <-> firmware link created
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/DeviceTypeFirmware'
-        '400':
-          description: Invalid input data provided 
+                $ref: "#/components/schemas/DeviceTypeFirmware"
+        "400":
+          description: Invalid input data provided
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
-        '409':
+        "409":
           description: Device type <-> firmware link already exists
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
-        '422':
+        "422":
           description: Input data could not be parsed
           content:
             application/json:
               schema:
                 type: string
                 description: Parse error description
-        '500':
+        "500":
           description: Internal error
           content:
             application/json:
@@ -895,19 +895,19 @@ paths:
           schema:
             type: integer
       responses:
-        '200':
+        "200":
           description: Successful operation
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/DeviceTypeFirmware'
-        '404':
+                $ref: "#/components/schemas/DeviceTypeFirmware"
+        "404":
           description: Device type <-> firmware link not found
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '500':
+                $ref: "#/components/schemas/Error"
+        "500":
           description: Internal error
           content:
             application/json:
@@ -928,19 +928,19 @@ paths:
           schema:
             type: integer
       responses:
-        '200':
+        "200":
           description: Successful operation
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/DeviceTypeFirmware'
-        '404':
+                $ref: "#/components/schemas/DeviceTypeFirmware"
+        "404":
           description: Device type <-> firmware link not found
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '500':
+                $ref: "#/components/schemas/Error"
+        "500":
           description: Internal error
           content:
             application/json:
@@ -986,7 +986,7 @@ components:
         desired_firmware:
           type: integer
         status:
-          $ref: '#/components/schemas/DeviceStatus'
+          $ref: "#/components/schemas/DeviceStatus"
       required:
         - name
         - type_
@@ -1006,7 +1006,7 @@ components:
         desired_firmware:
           type: integer
         status:
-          $ref: '#/components/schemas/DeviceStatus'
+          $ref: "#/components/schemas/DeviceStatus"
     Device:
       type: object
       properties:
@@ -1022,7 +1022,7 @@ components:
         desired_firmware:
           type: integer
         status:
-          $ref: '#/components/schemas/DeviceStatus'
+          $ref: "#/components/schemas/DeviceStatus"
       required:
         - id
         - name
@@ -1035,12 +1035,12 @@ components:
       enum: ["LIGHTWEIGHT"]
     LightweightKeyAlgorithm:
       type: string
-      enum: ["AES_GCM", "ASCON_AEAD128"]
+      enum: ["AES_GCM128", "ASCON_AEAD128"]
     LightweightKeyDetails:
       type: object
       properties:
         algorithm:
-          $ref: '#/components/schemas/LightweightKeyAlgorithm'
+          $ref: "#/components/schemas/LightweightKeyAlgorithm"
         key:
           type: string
           format: byte
@@ -1053,9 +1053,9 @@ components:
       type: object
       properties:
         key_type:
-          $ref: '#/components/schemas/KeyType'
+          $ref: "#/components/schemas/KeyType"
         details:
-          $ref: '#/components/schemas/LightweightKeyDetails'
+          $ref: "#/components/schemas/LightweightKeyDetails"
       required:
         - key_type
         - details
@@ -1065,9 +1065,9 @@ components:
         id:
           type: integer
         key_type:
-          $ref: '#/components/schemas/KeyType'
+          $ref: "#/components/schemas/KeyType"
         details:
-          $ref: '#/components/schemas/LightweightKeyDetails'
+          $ref: "#/components/schemas/LightweightKeyDetails"
       required:
         - key_type
         - details
@@ -1145,7 +1145,7 @@ components:
       required:
         - error
   requestBodies:
-   
+
   securitySchemes:
     api_key:
       type: apiKey

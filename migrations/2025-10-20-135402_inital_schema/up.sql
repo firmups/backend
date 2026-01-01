@@ -104,7 +104,7 @@ CREATE TABLE device_key (
 );
 
 -- Lightweight Key Details
-CREATE TYPE crypto_algorithm AS ENUM ('AES-GCM', 'ASCON-AEAD128');
+CREATE TYPE crypto_algorithm AS ENUM ('AES-GCM128', 'ASCON-AEAD128');
 
 CREATE TABLE lightweight_key_details (
     id SERIAL PRIMARY KEY,

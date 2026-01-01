@@ -8,11 +8,15 @@ pub struct CryptoAes128Gcm;
 
 impl crypto::CryptoAead for CryptoAes128Gcm {
     fn alg_id(&self) -> crypto::CryptoAlgorithm {
-        crypto::CryptoAlgorithm::Aes128Gcm
+        crypto::CryptoAlgorithm::AesGcm128
     }
 
     fn nonce_len(&self) -> usize {
         12
+    }
+
+    fn tag_len(&self) -> usize {
+        16
     }
 
     fn encrypt(

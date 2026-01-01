@@ -7,9 +7,9 @@ use diesel_derive_enum::DbEnum;
 #[ExistingTypePath = "crate::db::schema::sql_types::CryptoAlgorithm"]
 pub enum CryptoAlgorithm {
     /// Maps to the Postgres enum label 'AES-GCM'
-    #[db_rename = "AES-GCM"]
-    #[serde(rename = "AES_GCM")]
-    AesGcm,
+    #[db_rename = "AES-GCM128"]
+    #[serde(rename = "AES_GCM128")]
+    AesGcm128,
 
     /// Maps to the Postgres enum label 'ASCON-AEAD128'
     #[db_rename = "ASCON-AEAD128"]

@@ -1,7 +1,5 @@
-use crate::db::models::{
-    Device, DeviceType, DeviceTypeFirmware, Firmware, NewDevice, NewDeviceType,
-    NewDeviceTypeFirmware, NewFirmware,
-};
+use crate::db::models::LightweightKeyDetails;
+use crate::db::models::{Device, DeviceKey, Firmware, KeyStatus};
 use codec::cose;
 use codec::operation;
 use diesel::QueryDsl;
@@ -10,6 +8,7 @@ use diesel::prelude::*;
 use diesel_async::RunQueryDsl;
 use log::{error, info};
 use std::path::PathBuf;
+use std::pin::Pin;
 use std::{net::SocketAddr, sync::Arc};
 use tokio::io::{AsyncReadExt, AsyncSeekExt};
 use tokio::net::UdpSocket;
@@ -75,6 +74,59 @@ impl CborApi {
     }
 }
 
+#[derive(Clone)]
+struct DbKeyProvider {
+    shared_pool: Arc<crate::DbPool>,
+}
+
+impl codec::cose::KeyProvider for DbKeyProvider {
+    fn key_for_device(
+        &self,
+        device_id: u32,
+        key_type: codec::cose::KeyType,
+    ) -> Pin<
+        Box<dyn Future<Output = Result<Vec<u8>, codec::cose::KeyProviderError>> + Send + 'static>,
+    > {
+        let pool = Arc::clone(&self.shared_pool);
+        Box::pin(async move {
+            use crate::db::schema::device_key::dsl as device_key_dsl;
+            use crate::db::schema::lightweight_key_details::dsl as details_dsl;
+            let mut conn = pool
+                .get_owned()
+                .await
+                .map_err(|_| codec::cose::KeyProviderError::DbError)?;
+
+            let (active_key, details): (DeviceKey, LightweightKeyDetails) =
+                device_key_dsl::device_key
+                    .inner_join(details_dsl::lightweight_key_details)
+                    .filter(device_key_dsl::device.eq(device_id as i32))
+                    .filter(device_key_dsl::status.eq(KeyStatus::ACTIVE))
+                    .select((DeviceKey::as_select(), LightweightKeyDetails::as_select()))
+                    .first(&mut conn)
+                    .await
+                    .map_err(|e| match e {
+                        diesel::result::Error::NotFound => {
+                            codec::cose::KeyProviderError::KeyNotFound
+                        }
+                        _ => codec::cose::KeyProviderError::DbError,
+                    })?;
+            if active_key.key_type != crate::db::models::KeyType::LIGHTWEIGHT {
+                return Err(codec::cose::KeyProviderError::KeyMismatch);
+            }
+            match details.algorithm {
+                crate::db::models::CryptoAlgorithm::AesGcm128 => match key_type {
+                    codec::cose::KeyType::AesGcm128 => Ok(details.key),
+                    _ => Err(codec::cose::KeyProviderError::KeyMismatch),
+                },
+                crate::db::models::CryptoAlgorithm::AsconAead128 => match key_type {
+                    codec::cose::KeyType::AsconAead128 => Ok(details.key),
+                    _ => Err(codec::cose::KeyProviderError::KeyMismatch),
+                },
+            }
+        })
+    }
+}
+
 async fn udp_loop(socket: UdpSocket, config: CborApiConfig, cancellation_token: CancellationToken) {
     let mut buf = [0u8; 2048];
 
@@ -88,12 +140,14 @@ async fn udp_loop(socket: UdpSocket, config: CborApiConfig, cancellation_token: 
                         continue;
                     }
                 };
-                let mut cose_handler = cose::CoseHandler::new([0u8; 16].to_vec());
+                let mut cose_handler = cose::CoseHandler::new(Box::new(DbKeyProvider {
+                    shared_pool: config.shared_pool.clone(),
+                }));
                 let mut opcode: u16 = 0;
                 let mut device_id: u32 = 0;
 
                 let operation_bytes =
-                    match cose_handler.decode_msg(&mut device_id, &mut opcode, &buf[..len]) {
+                    match cose_handler.decode_msg(&mut device_id, &mut opcode, &buf[..len]).await {
                         Ok(op) => op,
                         Err(e) => {
                             error!("Failed to decode message from {addr}: {e}");
@@ -135,7 +189,6 @@ async fn udp_loop(socket: UdpSocket, config: CborApiConfig, cancellation_token: 
                         };
 
                         let response_buf = match cose_handler.encode_msg(
-                            device_id,
                             operation::OperationType::GetParameterResponse as u16,
                             &operation_buf[..],
                         ) {
@@ -191,7 +244,6 @@ async fn udp_loop(socket: UdpSocket, config: CborApiConfig, cancellation_token: 
                         };
 
                         let response_buf = match cose_handler.encode_msg(
-                            device_id,
                             operation::OperationType::GetDeviceInfoResponse as u16,
                             &operation_buf[..],
                         ) {
@@ -261,7 +313,6 @@ async fn udp_loop(socket: UdpSocket, config: CborApiConfig, cancellation_token: 
                         };
 
                         let response_buf = match cose_handler.encode_msg(
-                            device_id,
                             operation::OperationType::GetFirmwareResponse as u16,
                             &operation_buf[..],
                         ) {

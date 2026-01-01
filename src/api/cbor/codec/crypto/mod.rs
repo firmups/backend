@@ -1,9 +1,9 @@
 pub mod crypto_aes;
 pub mod crypto_ascon;
 
-#[derive(Eq, Hash, PartialEq)]
+#[derive(Eq, Hash, PartialEq, Clone, Copy)]
 pub enum CryptoAlgorithm {
-    Aes128Gcm,
+    AesGcm128,
     AsconAead128,
 }
 
@@ -20,6 +20,8 @@ pub trait CryptoAead: Send + Sync {
 
     /// Expected nonce length at runtime.
     fn nonce_len(&self) -> usize;
+
+    fn tag_len(&self) -> usize;
 
     fn encrypt(
         &self,
