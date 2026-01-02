@@ -19,12 +19,7 @@ impl OperationHandler {
         OperationHandler { config, addr }
     }
 
-    pub async fn handle_operation(
-        &self,
-        device_id: u32,
-        opcode: u16,
-        operation: &[u8],
-    ) -> Result<Vec<u8>, operation::OperationError> {
+    pub async fn handle_operation(&self, device_id: u32, opcode: u16, operation: &[u8]) -> Vec<u8> {
         let opcode_type = operation::OperationType::from(opcode);
         let response_buf: Vec<u8>;
 
@@ -34,7 +29,8 @@ impl OperationHandler {
                     Ok(r) => r,
                     Err(e) => {
                         error!("Failed to decode operation from {}: {}", self.addr, e);
-                        return Err(operation::OperationError::DecodingError);
+                        return self
+                            .handle_error_operation(operation::OperationError::DecodingError);
                     }
                 };
                 let param_id = req.parameter_id.unwrap();
@@ -54,7 +50,8 @@ impl OperationHandler {
                     Ok(b) => b,
                     Err(e) => {
                         error!("Failed to encode operation: {e}");
-                        return Err(operation::OperationError::EncodingError);
+                        return self
+                            .handle_error_operation(operation::OperationError::EncodingError);
                     }
                 };
             }
@@ -66,7 +63,8 @@ impl OperationHandler {
                         Ok(r) => r,
                         Err(e) => {
                             error!("Failed to decode operation from {}: {}", self.addr, e);
-                            return Err(operation::OperationError::DecodingError);
+                            return self
+                                .handle_error_operation(operation::OperationError::DecodingError);
                         }
                     };
 
@@ -89,7 +87,8 @@ impl OperationHandler {
                         Ok(b) => b,
                         Err(e) => {
                             error!("Failed to encode operation: {e}");
-                            return Err(operation::OperationError::EncodingError);
+                            return self
+                                .handle_error_operation(operation::OperationError::EncodingError);
                         }
                     };
             }
@@ -100,7 +99,8 @@ impl OperationHandler {
                     Ok(r) => r,
                     Err(e) => {
                         error!("Failed to decode operation from {}: {}", self.addr, e);
-                        return Err(operation::OperationError::DecodingError);
+                        return self
+                            .handle_error_operation(operation::OperationError::DecodingError);
                     }
                 };
 
@@ -138,15 +138,20 @@ impl OperationHandler {
                     Ok(b) => b,
                     Err(e) => {
                         error!("Failed to encode operation: {e}");
-                        return Err(operation::OperationError::EncodingError);
+                        return self
+                            .handle_error_operation(operation::OperationError::EncodingError);
                     }
                 }
             }
             _ => {
                 error!("Unsupported opcode {} from {}", opcode, self.addr);
-                return Err(operation::OperationError::InvalidOperation);
+                return self.handle_error_operation(operation::OperationError::InvalidOperation);
             }
         }
-        return Ok(response_buf);
+        return response_buf;
+    }
+
+    fn handle_error_operation(&self, error: operation::OperationError) -> Vec<u8> {
+        operation::operation_error::encode_operation_error(error)
     }
 }
