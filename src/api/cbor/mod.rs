@@ -1,7 +1,6 @@
 use crate::db::models::LightweightKeyDetails;
-use crate::db::models::{Device, DeviceKey, Firmware, KeyStatus};
+use crate::db::models::{DeviceKey, KeyStatus};
 use codec::cose;
-use codec::operation;
 use diesel::QueryDsl;
 use diesel::SelectableHelper;
 use diesel::prelude::*;
@@ -10,12 +9,12 @@ use log::{error, info};
 use std::path::PathBuf;
 use std::pin::Pin;
 use std::{net::SocketAddr, sync::Arc};
-use tokio::io::{AsyncReadExt, AsyncSeekExt};
 use tokio::net::UdpSocket;
-use tokio::{fs, io, select};
+use tokio::select;
 use tokio_util::sync::CancellationToken;
 
 mod codec;
+mod operation_handler;
 
 #[derive(Clone)]
 pub struct CborApiConfig {
@@ -129,7 +128,6 @@ impl codec::cose::KeyProvider for DbKeyProvider {
 
 async fn udp_loop(socket: UdpSocket, config: CborApiConfig, cancellation_token: CancellationToken) {
     let mut buf = [0u8; 2048];
-
     loop {
         select! {
             res = socket.recv_from(&mut buf[..]) => {
@@ -143,6 +141,7 @@ async fn udp_loop(socket: UdpSocket, config: CborApiConfig, cancellation_token: 
                 let mut cose_handler = cose::CoseHandler::new(Box::new(DbKeyProvider {
                     shared_pool: config.shared_pool.clone(),
                 }));
+                let operation_handler = operation_handler::OperationHandler::new(config.clone(), addr);
                 let mut opcode: u16 = 0;
                 let mut device_id: u32 = 0;
 
@@ -155,185 +154,24 @@ async fn udp_loop(socket: UdpSocket, config: CborApiConfig, cancellation_token: 
                         }
                     };
 
-                let opcode_type = operation::OperationType::from(opcode);
+                let operation_response = match operation_handler.handle_operation(device_id, opcode, &operation_bytes[..]).await {
+                    Ok(resp) => resp,
+                    Err(e) => {
+                        continue;
+                    },
+                };
 
-                match opcode_type {
-                    operation::OperationType::GetParameterRequest => {
-                        let req = match operation::decode_get_parameter_request(&operation_bytes[..])
-                        {
-                            Ok(r) => r,
-                            Err(e) => {
-                                error!("Failed to decode operation from {addr}: {e}");
-                                continue;
-                            }
-                        };
-                        let param_id = req.parameter_id.unwrap();
-                        let param_type = req.parameter_type.unwrap();
-                        info!("UDP get_parameter for id={param_id}");
-
-                        // Build a response (example)
-                        let param_value: u64 = 42;
-                        let response = operation::GetParameterResponse {
-                            parameter_id: param_id,
-                            parameter_type: param_type,
-                            parameter_value: param_value.to_be_bytes().to_vec(),
-                        };
-
-                        let operation_buf = match operation::encode_get_parameter_response(&response)
-                        {
-                            Ok(b) => b,
-                            Err(e) => {
-                                error!("Failed to encode operation: {e}");
-                                continue;
-                            }
-                        };
-
-                        let response_buf = match cose_handler.encode_msg(
-                            operation::OperationType::GetParameterResponse as u16,
-                            &operation_buf[..],
-                        ) {
-                            Ok(b) => b,
-                            Err(e) => {
-                                error!("Failed to encode COSE response: {e}");
-                                continue;
-                            }
-                        };
-
-                        // Send response
-                        if let Err(e) = socket.send_to(&response_buf[..], addr).await {
-                            error!("Failed to send to {addr}: {e}");
-                        } else {
-                            info!("Sent GetParameterResponse");
-                        }
-                    }
-                    operation::OperationType::GetDeviceInfoRequest => {
-                        use crate::db::schema::device::dsl::*;
-
-                        let req = match operation::decode_get_device_info_request(&operation_bytes[..])
-                        {
-                            Ok(r) => r,
-                            Err(e) => {
-                                error!("Failed to decode operation from {addr}: {e}");
-                                continue;
-                            }
-                        };
-
-                        let mut conn = config.shared_pool
-                            .clone()
-                            .get_owned()
-                            .await.unwrap();
-                        let result = device
-                            .select(Device::as_select())
-                            .filter(id.eq(req.device_id.unwrap() as i32))
-                            .first(&mut conn)
-                            .await.unwrap();
-
-                        let response = operation::GetDeviceInfoResponse {
-                            firmware: result.firmware.unwrap() as u32,
-                            desired_firmware: result.desired_firmware as u32,
-                            status: result.status as u8,
-                        };
-
-                        let operation_buf = match operation::encode_get_device_info_response(&response)
-                        {
-                            Ok(b) => b,
-                            Err(e) => {
-                                error!("Failed to encode operation: {e}");
-                                continue;
-                            }
-                        };
-
-                        let response_buf = match cose_handler.encode_msg(
-                            operation::OperationType::GetDeviceInfoResponse as u16,
-                            &operation_buf[..],
-                        ) {
-                            Ok(b) => b,
-                            Err(e) => {
-                                error!("Failed to encode COSE response: {e}");
-                                continue;
-                            }
-                        };
-
-                        // Send response
-                        if let Err(e) = socket.send_to(&response_buf[..], addr).await {
-                            error!("Failed to send to {addr}: {e}");
-                        } else {
-                            info!("Sent GetDeviceInfoResponse");
-                        }
-                    }
-                    operation::OperationType::GetFirmwareRequest => {
-                        use crate::db::schema::firmware::dsl::*;
-
-                        let req = match operation::decode_get_firmware_request(&operation_bytes[..])
-                        {
-                            Ok(r) => r,
-                            Err(e) => {
-                                error!("Failed to decode operation from {addr}: {e}");
-                                continue;
-                            }
-                        };
-
-                        let mut conn = config.shared_pool
-                            .clone()
-                            .get_owned()
-                            .await.unwrap();
-                        let result = firmware
-                            .select(Firmware::as_select())
-                            .filter(id.eq(req.firmware.unwrap() as i32))
-                            .first(&mut conn)
-                            .await.unwrap();
-
-                        let safe_name = format!("{}.bin", result.file_id);
-                        let mut path = config.data_storage_location.clone();
-                        path.push("firmware");
-                        path.push(safe_name);
-
-                        let mut file = fs::File::open(path).await.unwrap();
-                        file.seek(io::SeekFrom::Start(req.offset.unwrap() as u64)).await.unwrap();
-
-                        //ToDo: Dangerous!!
-                        let mut buf = vec![0u8; req.length.unwrap() as usize];
-                        let read = file.read(&mut buf).await.unwrap();
-                        buf.truncate(read);
-
-                        let response = operation::GetFirmwareResponse {
-                            firmware: result.id as u32,
-                            offset: req.offset.unwrap() as u32,
-                            length: read as u32,
-                            data: buf,
-                        };
-
-                        let operation_buf = match operation::encode_get_firmware_response(&response)
-                        {
-                            Ok(b) => b,
-                            Err(e) => {
-                                error!("Failed to encode operation: {e}");
-                                continue;
-                            }
-                        };
-
-                        let response_buf = match cose_handler.encode_msg(
-                            operation::OperationType::GetFirmwareResponse as u16,
-                            &operation_buf[..],
-                        ) {
-                            Ok(b) => b,
-                            Err(e) => {
-                                error!("Failed to encode COSE response: {e}");
-                                continue;
-                            }
-                        };
-
-                        // Send response
-                        if let Err(e) = socket.send_to(&response_buf[..], addr).await {
-                            error!("Failed to send to {addr}: {e}");
-                        } else {
-                            info!("Sent GetFirmwareResponse");
-                        }
-                    }
-                    _ => {
-                        error!("Unsupported opcode {opcode} from {addr}");
+                let response_buf = match cose_handler.encode_msg(opcode + 1, &operation_response[..]) {
+                    Ok(b) => b,
+                    Err(e) => {
+                        error!("Failed to encode COSE response: {e}");
                         continue;
                     }
+                };
+                if let Err(e) = socket.send_to(&response_buf[..], addr).await {
+                    error!("Failed to send to {addr}: {e}");
+                } else {
+                    info!("Sent response for opcode {opcode} to device {device_id} at {addr}");
                 }
             }
             _ = cancellation_token.cancelled() => {

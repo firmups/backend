@@ -321,19 +321,20 @@ fn encode_protected_header(protected_header: ProtectedHeader) -> Vec<u8> {
     let mut buf = Vec::with_capacity(256);
     let mut enc = Encoder::new(&mut buf);
 
-    enc.map(5);
-    enc.u16(ProtectedHeaderKey::EncryptionAlgorithm as u16);
-    enc.u16(protected_header.encryption_algorithm as u16);
-    enc.u16(ProtectedHeaderKey::DeviceId as u16);
-    enc.u32(protected_header.device_id);
-    enc.u16(ProtectedHeaderKey::Opcode as u16);
-    enc.u16(protected_header.opcode);
-    enc.u16(ProtectedHeaderKey::EncryptionNonce as u16);
-    enc.bytes(&protected_header.nonce[..]);
-    enc.u16(ProtectedHeaderKey::CriticalHeaderList as u16);
-    enc.array(2);
-    enc.u16(ProtectedHeaderKey::DeviceId as u16);
-    enc.u16(ProtectedHeaderKey::Opcode as u16);
+    // Encoding cannot fail as we are writing to a Vec
+    let _ = enc.map(5);
+    let _ = enc.u16(ProtectedHeaderKey::EncryptionAlgorithm as u16);
+    let _ = enc.u16(protected_header.encryption_algorithm as u16);
+    let _ = enc.u16(ProtectedHeaderKey::DeviceId as u16);
+    let _ = enc.u32(protected_header.device_id);
+    let _ = enc.u16(ProtectedHeaderKey::Opcode as u16);
+    let _ = enc.u16(protected_header.opcode);
+    let _ = enc.u16(ProtectedHeaderKey::EncryptionNonce as u16);
+    let _ = enc.bytes(&protected_header.nonce[..]);
+    let _ = enc.u16(ProtectedHeaderKey::CriticalHeaderList as u16);
+    let _ = enc.array(2);
+    let _ = enc.u16(ProtectedHeaderKey::DeviceId as u16);
+    let _ = enc.u16(ProtectedHeaderKey::Opcode as u16);
 
     buf
 }
