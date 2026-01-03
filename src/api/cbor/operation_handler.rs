@@ -33,15 +33,13 @@ impl OperationHandler {
                             .handle_error_operation(operation::OperationError::DecodingError);
                     }
                 };
-                let param_id = req.parameter_id.unwrap();
-                let param_type = req.parameter_type.unwrap();
-                info!("UDP get_parameter for id={param_id}");
+                info!("UDP get_parameter for id={}", req.parameter_id);
 
                 // Build a response (example)
                 let param_value: u64 = 42;
                 let response = operation::parameter::GetParameterResponse {
-                    parameter_id: param_id,
-                    parameter_type: param_type,
+                    parameter_id: req.parameter_id,
+                    parameter_type: req.parameter_type,
                     parameter_value: param_value.to_be_bytes().to_vec(),
                 };
 
@@ -68,16 +66,41 @@ impl OperationHandler {
                         }
                     };
 
-                let mut conn = self.config.shared_pool.clone().get_owned().await.unwrap();
-                let result = device
+                let mut conn = match self.config.shared_pool.clone().get_owned().await {
+                    Ok(c) => c,
+                    Err(e) => {
+                        error!("Failed to get DB connection: {}", e);
+                        return self
+                            .handle_error_operation(operation::OperationError::InternalError);
+                    }
+                };
+                let result = match device
                     .select(Device::as_select())
-                    .filter(id.eq(req.device_id.unwrap() as i32))
+                    .filter(id.eq(req.device_id as i32))
                     .first(&mut conn)
                     .await
-                    .unwrap();
+                {
+                    Ok(r) => r,
+                    Err(diesel::result::Error::NotFound) => {
+                        error!("Device {} not found", req.device_id);
+                        return self
+                            .handle_error_operation(operation::OperationError::DeviceNotFound);
+                    }
+                    Err(e) => {
+                        error!("Failed to query device: {}", e);
+                        return self
+                            .handle_error_operation(operation::OperationError::InternalError);
+                    }
+                };
+
+                let fw = if result.firmware.is_some() {
+                    Some(result.firmware.expect("Firmware must be some") as u32)
+                } else {
+                    None
+                };
 
                 let response = operation::device_info::GetDeviceInfoResponse {
-                    firmware: result.firmware.unwrap() as u32,
+                    firmware: fw,
                     desired_firmware: result.desired_firmware as u32,
                     status: result.status as u8,
                 };
@@ -104,32 +127,70 @@ impl OperationHandler {
                     }
                 };
 
-                let mut conn = self.config.shared_pool.clone().get_owned().await.unwrap();
-                let result = firmware
+                let mut conn = match self.config.shared_pool.clone().get_owned().await {
+                    Ok(c) => c,
+                    Err(e) => {
+                        error!("Failed to get DB connection: {}", e);
+                        return self
+                            .handle_error_operation(operation::OperationError::InternalError);
+                    }
+                };
+                let result = match firmware
                     .select(Firmware::as_select())
-                    .filter(id.eq(req.firmware.unwrap() as i32))
+                    .filter(id.eq(req.firmware as i32))
                     .first(&mut conn)
                     .await
-                    .unwrap();
+                {
+                    Ok(r) => r,
+                    Err(diesel::result::Error::NotFound) => {
+                        error!("Firmware {} not found", req.firmware);
+                        return self
+                            .handle_error_operation(operation::OperationError::FirmwareNotFound);
+                    }
+                    Err(e) => {
+                        error!("Failed to query firmware: {}", e);
+                        return self
+                            .handle_error_operation(operation::OperationError::InternalError);
+                    }
+                };
 
                 let safe_name = format!("{}.bin", result.file_id);
                 let mut path = self.config.data_storage_location.clone();
                 path.push("firmware");
                 path.push(safe_name);
 
-                let mut file = fs::File::open(path).await.unwrap();
-                file.seek(io::SeekFrom::Start(req.offset.unwrap() as u64))
-                    .await
-                    .unwrap();
+                let mut file = match fs::File::open(path).await {
+                    Ok(f) => f,
+                    Err(e) => {
+                        error!("Failed to open firmware file: {}", e);
+                        return self
+                            .handle_error_operation(operation::OperationError::InternalError);
+                    }
+                };
+                match file.seek(io::SeekFrom::Start(req.offset as u64)).await {
+                    Ok(_) => {}
+                    Err(e) => {
+                        error!("Failed to seek firmware file: {}", e);
+                        return self
+                            .handle_error_operation(operation::OperationError::InternalError);
+                    }
+                }
 
                 //ToDo: Dangerous!!
-                let mut buf = vec![0u8; req.length.unwrap() as usize];
-                let read = file.read(&mut buf).await.unwrap();
+                let mut buf = vec![0u8; req.length as usize];
+                let read = match file.read(&mut buf).await {
+                    Ok(r) => r,
+                    Err(e) => {
+                        error!("Failed to read firmware file: {}", e);
+                        return self
+                            .handle_error_operation(operation::OperationError::InternalError);
+                    }
+                };
                 buf.truncate(read);
 
                 let response = operation::firmware::GetFirmwareResponse {
                     firmware: result.id as u32,
-                    offset: req.offset.unwrap() as u32,
+                    offset: req.offset as u32,
                     length: read as u32,
                     data: buf,
                 };

@@ -45,7 +45,9 @@ impl CborApi {
         }
     }
     pub async fn start(&mut self) {
-        let socket = UdpSocket::bind(self.config.listen_address).await.unwrap();
+        let socket = UdpSocket::bind(self.config.listen_address)
+            .await
+            .expect("Failed to bind UDP socket");
         let cancel = self.cancel.clone();
         let config = self.config.clone();
         self.joiner = Some(tokio::spawn(async move {
@@ -61,7 +63,7 @@ impl CborApi {
     pub async fn shutdown(&mut self) {
         self.cancel.cancel();
         if self.joiner.is_some() {
-            let handle = self.joiner.take().unwrap();
+            let handle = self.joiner.take().expect("Failed to take join handle");
             let _ = handle.await;
         }
     }

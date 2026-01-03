@@ -484,16 +484,31 @@ pub async fn get_firmware_file_metadata(
     let filename = format!("{}-{}-{}.bin", fw.name, fw.version, fw.id);
     headers.insert(
         "Content-Disposition",
-        HeaderValue::from_str(&format!("attachment; filename=\"{}\"", filename)).unwrap(),
+        HeaderValue::from_str(&format!("attachment; filename=\"{}\"", filename)).map_err(|_| {
+            rest::error::internal_error(rest::error::client_error(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Failed to set Content-Disposition header".to_string(),
+            ))
+        })?,
     );
     headers.insert(
         "ETag",
-        HeaderValue::from_str(&format!("\"{}\"", fw.sha256)).unwrap(),
+        HeaderValue::from_str(&format!("\"{}\"", fw.sha256)).map_err(|_| {
+            rest::error::internal_error(rest::error::client_error(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Failed to set ETag header".to_string(),
+            ))
+        })?,
     );
     //headers.insert("Accept-Ranges", HeaderValue::from_static("bytes"));
     headers.insert(
         "Content-Length",
-        HeaderValue::from_str(&fw.size.to_string()).unwrap(),
+        HeaderValue::from_str(&fw.size.to_string()).map_err(|_| {
+            rest::error::internal_error(rest::error::client_error(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Failed to set Content-Length header".to_string(),
+            ))
+        })?,
     );
 
     Ok((headers, Body::empty()))
@@ -554,16 +569,31 @@ pub async fn get_firmware_file(
     let filename = format!("{}-{}-{}.bin", fw.name, fw.version, fw.id);
     headers.insert(
         "Content-Disposition",
-        HeaderValue::from_str(&format!("attachment; filename=\"{}\"", filename)).unwrap(),
+        HeaderValue::from_str(&format!("attachment; filename=\"{}\"", filename)).map_err(|_| {
+            rest::error::internal_error(rest::error::client_error(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Failed to set Content-Disposition header".to_string(),
+            ))
+        })?,
     );
     headers.insert(
         "ETag",
-        HeaderValue::from_str(&format!("\"{}\"", fw.sha256)).unwrap(),
+        HeaderValue::from_str(&format!("\"{}\"", fw.sha256)).map_err(|_| {
+            rest::error::internal_error(rest::error::client_error(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Failed to set ETag header".to_string(),
+            ))
+        })?,
     );
     //headers.insert("Accept-Ranges", HeaderValue::from_static("bytes"));
     headers.insert(
         "Content-Length",
-        HeaderValue::from_str(&fw.size.to_string()).unwrap(),
+        HeaderValue::from_str(&fw.size.to_string()).map_err(|_| {
+            rest::error::internal_error(rest::error::client_error(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Failed to set Content-Length header".to_string(),
+            ))
+        })?,
     );
 
     Ok((headers, body))

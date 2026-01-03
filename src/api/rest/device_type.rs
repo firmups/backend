@@ -125,14 +125,26 @@ pub async fn update_device_type(
 ) -> Result<(StatusCode, Json<DeviceType>), rest::error::ApiError> {
     use crate::db::schema::device_type::dsl::*;
     // Basic validation
-    if payload.name.is_some() {
-        if payload.name.clone().unwrap().len() > 100 {
-            return Err(rest::error::client_error(
-                StatusCode::BAD_REQUEST,
-                "name too long (max 100)".to_string(),
-            ));
-        }
+    let Some(name_str) = &payload.name else {
+        return Err(rest::error::client_error(
+            StatusCode::BAD_REQUEST,
+            "name is required".to_string(),
+        ));
     };
+
+    let name_trimmed = name_str.trim();
+    if name_trimmed.is_empty() {
+        return Err(rest::error::client_error(
+            StatusCode::BAD_REQUEST,
+            "name cannot be empty".to_string(),
+        ));
+    }
+    if name_trimmed.len() > 100 {
+        return Err(rest::error::client_error(
+            StatusCode::BAD_REQUEST,
+            "name too long (max 100)".to_string(),
+        ));
+    }
 
     // Insert
     let mut conn = match api_config.shared_pool.get().await {
@@ -161,7 +173,7 @@ pub async fn update_device_type(
             if kind == DatabaseErrorKind::UniqueViolation {
                 return Err(rest::error::client_error(
                     StatusCode::CONFLICT,
-                    format!("device type '{}' already exists", payload.name.unwrap()),
+                    format!("device type '{}' already exists", name_trimmed),
                 ));
             } else {
                 let error = diesel::result::Error::DatabaseError(kind, info);

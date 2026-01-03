@@ -12,6 +12,7 @@ pub enum OperationError {
     UnknownParameter = 3,
     DeviceNotFound = 4,
     FirmwareNotFound = 5,
+    InternalError = 6,
 }
 
 impl From<u16> for OperationError {
@@ -23,6 +24,7 @@ impl From<u16> for OperationError {
             3 => OperationError::UnknownParameter,
             4 => OperationError::DeviceNotFound,
             5 => OperationError::FirmwareNotFound,
+            6 => OperationError::InternalError,
             _ => OperationError::InvalidOperation,
         }
     }

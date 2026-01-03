@@ -1,7 +1,35 @@
-pub struct GetFirmwareRequest {
+pub struct GetFirmwareRequestDecode {
     pub firmware: Option<u32>,
     pub offset: Option<u32>,
     pub length: Option<u32>,
+}
+
+pub struct GetFirmwareRequest {
+    pub firmware: u32,
+    pub offset: u32,
+    pub length: u32,
+}
+
+impl TryFrom<GetFirmwareRequestDecode> for GetFirmwareRequest {
+    type Error = minicbor::decode::Error;
+
+    fn try_from(src: GetFirmwareRequestDecode) -> Result<Self, Self::Error> {
+        let Some(fw) = src.firmware else {
+            return Err(minicbor::decode::Error::message("Missing firmware"));
+        };
+        let Some(off) = src.offset else {
+            return Err(minicbor::decode::Error::message("Missing offset"));
+        };
+        let Some(len) = src.length else {
+            return Err(minicbor::decode::Error::message("Missing length"));
+        };
+
+        Ok(GetFirmwareRequest {
+            firmware: fw,
+            offset: off,
+            length: len,
+        })
+    }
 }
 
 pub struct GetFirmwareResponse {
@@ -15,7 +43,7 @@ pub fn decode_get_firmware_request(
     operation: &[u8],
 ) -> Result<GetFirmwareRequest, minicbor::decode::Error> {
     let mut decoder = minicbor::Decoder::new(operation);
-    let mut firmware_request = GetFirmwareRequest {
+    let mut firmware_request = GetFirmwareRequestDecode {
         firmware: None,
         offset: None,
         length: None,
@@ -29,7 +57,7 @@ pub fn decode_get_firmware_request(
     firmware_request.offset = Some(decoder.u32()?);
     firmware_request.length = Some(decoder.u32()?);
 
-    Ok(firmware_request)
+    Ok(firmware_request.try_into()?)
 }
 
 pub fn encode_get_firmware_response(

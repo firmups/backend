@@ -161,7 +161,9 @@ impl RestApi {
     }
 
     pub async fn start_blocking(&mut self) {
-        let tcp = TcpListener::bind(self.config.listen_address).await.unwrap();
+        let tcp = TcpListener::bind(self.config.listen_address)
+            .await
+            .expect("Failed to bind TCP listener");
         info!(
             "HTTP listening on {}:{}",
             self.config.listen_address.ip(),
@@ -178,7 +180,7 @@ impl RestApi {
             info!("CTRL+C received; shutting down");
         })
         .await
-        .unwrap();
+        .expect("Server error");
     }
 }
 

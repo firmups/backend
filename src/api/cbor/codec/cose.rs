@@ -195,7 +195,7 @@ pub async fn decode_msg(
                 .await
                 .map_err(|_| CoseCodecError::DecryptionError)?,
             &protected_header.nonce,
-            protected_header_buffer,
+            &create_aad(protected_header_buffer)[..],
             encrypted_operation_buffer,
         )
         .map_err(|_| CoseCodecError::DecryptionError)?;
@@ -248,7 +248,7 @@ pub async fn encode_msg(
                 .await
                 .map_err(|_| CoseCodecError::EncryptionError)?,
             &nonce,
-            &protected_header_buf,
+            &create_aad(&protected_header_buf)[..],
             operation,
         )
         .map_err(|_| CoseCodecError::EncryptionError)?;
@@ -363,4 +363,17 @@ fn decode_protected_header(
     }
 
     Ok(header)
+}
+
+fn create_aad(protected_header_buf: &[u8]) -> Vec<u8> {
+    let mut buf = Vec::with_capacity(256);
+    let mut enc = Encoder::new(&mut buf);
+
+    // Encoding cannot fail as we are writing to a Vec
+    let _ = enc.array(3);
+    let _ = enc.str("Encrypt0");
+    let _ = enc.bytes(protected_header_buf);
+    let _ = enc.bytes(&[][..]);
+
+    buf
 }
