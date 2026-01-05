@@ -1,5 +1,6 @@
 use crate::api::rest;
 use crate::db::models::{Device, NewDevice, UpdateDevice};
+use crate::db::schema::device::name;
 use axum::Json;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
@@ -166,25 +167,21 @@ pub async fn update_device(
 ) -> Result<(StatusCode, Json<Device>), rest::error::ApiError> {
     use crate::db::schema::device::dsl as device_dsl;
     // Basic validation
-    let Some(name_str) = &payload.name else {
-        return Err(rest::error::client_error(
-            StatusCode::BAD_REQUEST,
-            "name is required".to_string(),
-        ));
-    };
-
-    let name_trimmed = name_str.trim();
-    if name_trimmed.is_empty() {
-        return Err(rest::error::client_error(
-            StatusCode::BAD_REQUEST,
-            "name cannot be empty".to_string(),
-        ));
-    }
-    if name_trimmed.len() > 100 {
-        return Err(rest::error::client_error(
-            StatusCode::BAD_REQUEST,
-            "name too long (max 100)".to_string(),
-        ));
+    if payload.name.is_some() {
+        let name_str = payload.name.clone().expect("checked is_some above");
+        let name_trimmed = name_str.trim();
+        if name_trimmed.is_empty() {
+            return Err(rest::error::client_error(
+                StatusCode::BAD_REQUEST,
+                "name cannot be empty".to_string(),
+            ));
+        }
+        if name_trimmed.len() > 100 {
+            return Err(rest::error::client_error(
+                StatusCode::BAD_REQUEST,
+                "name too long (max 100)".to_string(),
+            ));
+        }
     }
 
     let mut conn = match api_config.shared_pool.get().await {
