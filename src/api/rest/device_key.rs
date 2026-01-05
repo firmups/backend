@@ -123,16 +123,33 @@ pub async fn create_device_key(
                 match payload.kind.clone() {
                     NewDeviceKeyKind::Lightweight { details: det } => {
                         key_type = KeyType::LIGHTWEIGHT;
-                        if det.key.len() != 16 /* ToDo: Replace magic number */ {
-                            return Err(rest::error::TransactionError::from(
-                                rest::error::client_error(
-                                    StatusCode::BAD_REQUEST,
-                                    format!(
-                                        "Invalid key length {} for lightweight key",
-                                        det.key.len()
-                                    ),
-                                ),
-                            ));
+                        match det.algorithm {
+                            CryptoAlgorithm::AsconAead128  => {
+                                if det.key.len() != 16 /* ToDo: Replace magic number */ {
+                                    return Err(rest::error::TransactionError::from(
+                                        rest::error::client_error(
+                                            StatusCode::BAD_REQUEST,
+                                            format!(
+                                                "Invalid key length {} for ascon aead128 should be 16",
+                                                det.key.len()
+                                            ),
+                                        ),
+                                    ));
+                                };
+                            }
+                            CryptoAlgorithm::AesGcm128 => {
+                                if det.key.len() != 12 /* ToDo: Replace magic number */ {
+                                    return Err(rest::error::TransactionError::from(
+                                        rest::error::client_error(
+                                            StatusCode::BAD_REQUEST,
+                                            format!(
+                                                "Invalid key length {} for aes gcm128 should be 12",
+                                                det.key.len()
+                                            ),
+                                        ),
+                                    ));
+                                };
+                            }
                         }
                     }
                     NewDeviceKeyKind::Tls { details: _ } => {

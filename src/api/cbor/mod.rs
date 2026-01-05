@@ -23,19 +23,6 @@ pub struct CborApi {
     cancel: CancellationToken,
 }
 
-pub enum CborApiInternalError {
-    DecodeError,
-    EncodeError,
-    EncryptionError,
-    DecryptionError,
-}
-
-pub enum CborApiError {
-    InternalError(CborApiInternalError),
-    InvalidMessage,
-    UnsupportedOperation,
-}
-
 impl CborApi {
     pub fn new(config: CborApiConfig) -> Self {
         CborApi {

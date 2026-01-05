@@ -1,9 +1,8 @@
-use log::{error, info};
-
 pub mod device_info;
 pub mod firmware;
 pub mod operation_error;
-pub mod parameter;
+// ToDo: re-enable parameter module when implementing
+//pub mod parameter;
 
 pub enum OperationError {
     InvalidOperation = 0,
