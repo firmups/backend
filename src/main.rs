@@ -31,8 +31,8 @@ async fn main() {
     let data_path: PathBuf = match data_path_env {
         Ok(path) => PathBuf::from(path),
         Err(_) => {
-            println!("FIRMUPS_DATA_PATH not set using default: ./data/");
-            PathBuf::from("./data")
+            println!("FIRMUPS_DATA_PATH not set using default: /firmups/data");
+            PathBuf::from("/firmups/data")
         }
     };
 

@@ -29,3 +29,6 @@ db/pg
 
 # Data
 data/
+
+# Nix
+result
