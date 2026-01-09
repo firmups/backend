@@ -108,13 +108,14 @@
             config = {
               Cmd = [ "${pkgs.busybox}/bin/sh" "-c" "${pkgs.diesel-cli}/bin/diesel migration run && ${backend}/bin/firmups-backend" ];
               User = "65532:65532"; # nobody
-              WorkingDir = "/firmups";
+              WorkingDir = "/opt/firmups";
             };
   
-            extraCommands = ''
-              mkdir -p ./firmups
-              cp -r ${./migrations} ./firmups/migrations
-              chown -R 65532:65532 ./firmups
+            fakeRootCommands = ''
+              mkdir -p ./opt/firmups
+              mkdir -p ./opt/firmups/data
+              cp -r ${./migrations} ./opt/firmups/migrations
+              chown -R 65532:65532 ./opt/firmups
             '';
           };
         }

@@ -4,6 +4,7 @@ use diesel_async::{
 };
 use dotenvy::dotenv;
 use log::{error, info};
+use std::fs;
 use std::{net::SocketAddr, path::PathBuf, sync::Arc};
 use tracing_appender::rolling::{RollingFileAppender, Rotation};
 use tracing_subscriber::{EnvFilter, fmt, layer::SubscriberExt, util::SubscriberInitExt};
@@ -31,10 +32,15 @@ async fn main() {
     let data_path: PathBuf = match data_path_env {
         Ok(path) => PathBuf::from(path),
         Err(_) => {
-            println!("FIRMUPS_DATA_PATH not set using default: /firmups/data");
-            PathBuf::from("/firmups/data")
+            println!("FIRMUPS_DATA_PATH not set using default: /opt/firmups/data");
+            PathBuf::from("/opt/firmups/data")
         }
     };
+    // Ensure data directory exists
+    if let Err(e) = fs::create_dir_all(&data_path) {
+        eprintln!("Failed to create data directory {:?}: {}", data_path, e);
+        std::process::exit(1);
+    }
 
     let log_path_env = std::env::var("FIRMUPS_LOG_PATH");
     let log_path: PathBuf = match log_path_env {
@@ -44,11 +50,21 @@ async fn main() {
             data_path.join("logs")
         }
     };
+    // Ensure log directory exists
+    if let Err(e) = fs::create_dir_all(&log_path) {
+        eprintln!("Failed to create log directory {:?}: {}", log_path, e);
+        std::process::exit(1);
+    }
 
+    let max_log_days: usize = std::env::var("FIRMUPS_MAX_LOG_DAYS")
+        .ok()
+        .and_then(|s| s.parse::<usize>().ok())
+        .unwrap_or(7);
     let file_appender = RollingFileAppender::builder()
         .rotation(Rotation::DAILY)
         .filename_prefix("firmups")
         .filename_suffix("log")
+        .max_log_files(max_log_days)
         .build(log_path)
         .expect("create rolling file");
 

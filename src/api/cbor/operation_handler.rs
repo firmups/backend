@@ -6,7 +6,7 @@ use diesel::SelectableHelper;
 use diesel::query_dsl::methods::{FilterDsl, FindDsl, SelectDsl};
 use diesel::result::DatabaseErrorKind;
 use diesel_async::RunQueryDsl;
-use log::{error, warn};
+use log::{error, info, warn};
 use tokio::io::{AsyncReadExt, AsyncSeekExt};
 use tokio::{fs, io};
 
@@ -113,6 +113,7 @@ impl OperationHandler {
                     None
                 };
 
+                info!("get_device_info request from device={}", req.device_id);
                 let response = operation::device_info::GetDeviceInfoResponse {
                     firmware: fw,
                     desired_firmware: result.desired_firmware as u32,
@@ -248,6 +249,7 @@ impl OperationHandler {
                     return self.handle_error_operation(operation::OperationError::InternalError);
                 };
 
+                info!("set_device_info request from device={}", device_id);
                 let response = operation::device_info::SetDeviceInfoResponse {
                     firmware: fw as u32,
                     desired_firmware: result.desired_firmware as u32,
@@ -340,6 +342,10 @@ impl OperationHandler {
                     }
                 };
                 buf.truncate(read);
+                info!(
+                    "get_firmware request from device={} for firmware {}",
+                    device_id, result.id
+                );
 
                 let response = operation::firmware::GetFirmwareResponse {
                     firmware: result.id as u32,
