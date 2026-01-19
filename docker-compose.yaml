@@ -1,0 +1,47 @@
+services:
+  firmups:
+    image: firmups-backend:v0.1.0
+    restart: always
+    ports:
+      - "3000:3000"
+      - "53585:53585/udp"
+    env_file:
+      - .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - backend
+      - public
+    volumes:
+      - firmups-data:/opt/firmups/data
+
+  postgres:
+    image: postgres:18
+    restart: always
+    environment:
+      POSTGRES_USER: firmups_db
+      POSTGRES_PASSWORD: 575393l9HHiayZ9gKH35e
+      POSTGRES_DB: firmups_backend
+    ports:
+      - "5432:5432"
+    networks:
+      - backend
+    volumes:
+      - pg-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U firmups_db -d firmups_backend"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+
+volumes:
+  pg-data:
+  firmups-data:
+
+networks:
+  backend:
+    internal: true
+  public:
+    driver: bridge

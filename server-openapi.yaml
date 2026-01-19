@@ -1,0 +1,1153 @@
+openapi: 3.1.0
+info:
+  title: FIRMUPS Server API
+  version: "0.1.0"
+  description: |
+    The firmups server API allows for device and update management.
+  license:
+    name: Apache 2.0
+    url: https://www.apache.org/licenses/LICENSE-2.0.html
+externalDocs:
+  description: Find out more about Swagger
+  url: https://swagger.io
+servers:
+  - url: "http://127.0.0.1:3000"
+    description: Local development server
+tags:
+  - name: DeviceType
+    description: DeviceType endpoints
+  - name: Device
+    description: All about the devices in the field
+  - name: DeviceKey
+    description: Keys used for device backend communication
+  - name: Firmware
+    description: Firmware endpoints
+  - name: DeviceTypeFirmware
+    description: Link between firmware and DeviceType
+paths:
+  /device_type:
+    get:
+      tags:
+        - DeviceType
+      security:
+        - api_key: []
+      summary: List all device types
+      operationId: listDeviceTypes
+      responses:
+        "200":
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DeviceType"
+        "500":
+          description: Internal error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InternalError"
+    post:
+      tags:
+        - DeviceType
+      security:
+        - api_key: []
+      summary: Create a new device type
+      operationId: createDeviceType
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NewDeviceType"
+      responses:
+        "201":
+          description: Device type created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeviceType"
+        "400":
+          description: Invalid name provided
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: Device type already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "422":
+          description: Input data could not be parsed
+          content:
+            application/json:
+              schema:
+                type: string
+                description: Parse error description
+        "500":
+          description: Internal error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InternalError"
+  /device_type/{id}:
+    get:
+      tags:
+        - DeviceType
+      security:
+        - api_key: []
+      summary: Get device type
+      operationId: getDeviceType
+      parameters:
+        - name: id
+          in: path
+          description: ID of the DeviceType to be returned
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeviceType"
+        "404":
+          description: Device type not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Internal error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InternalError"
+    patch:
+      tags:
+        - DeviceType
+      security:
+        - api_key: []
+      summary: Update an existing device type
+      operationId: UpdateDeviceType
+      parameters:
+        - name: id
+          in: path
+          description: ID of the DeviceType to be updated
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateDeviceType"
+      responses:
+        "200":
+          description: Device type updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeviceType"
+        "400":
+          description: Invalid name provided
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Device type not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: Device type already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "422":
+          description: Input data could not be parsed
+          content:
+            application/json:
+              schema:
+                type: string
+                description: Parse error description
+        "500":
+          description: Internal error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InternalError"
+    delete:
+      tags:
+        - DeviceType
+      security:
+        - api_key: []
+      summary: Delete device type
+      operationId: deleteDeviceType
+      parameters:
+        - name: id
+          in: path
+          description: ID of the DeviceType to be deleted
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeviceType"
+        "404":
+          description: Device type not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Internal error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InternalError"
+  /device:
+    get:
+      tags:
+        - Device
+      security:
+        - api_key: []
+      summary: List all devices
+      operationId: listDevices
+      responses:
+        "200":
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Device"
+        "500":
+          description: Internal error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InternalError"
+    post:
+      tags:
+        - Device
+      security:
+        - api_key: []
+      summary: Create a new device
+      operationId: createDevic
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NewDevice"
+      responses:
+        "201":
+          description: Device created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Device"
+        "400":
+          description: Invalid input data provided
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: Device already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "422":
+          description: Input data could not be parsed
+          content:
+            application/json:
+              schema:
+                type: string
+                description: Parse error description
+        "500":
+          description: Internal error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InternalError"
+  /device/{id}:
+    get:
+      tags:
+        - Device
+      security:
+        - api_key: []
+      summary: Get device
+      operationId: getDevice
+      parameters:
+        - name: id
+          in: path
+          description: ID of the Device to be returned
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Device"
+        "404":
+          description: Device not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Internal error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InternalError"
+    patch:
+      tags:
+        - Device
+      security:
+        - api_key: []
+      summary: Update an existing device
+      operationId: updateDevice
+      parameters:
+        - name: id
+          in: path
+          description: ID of the Device to be updated
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateDevice"
+      responses:
+        "200":
+          description: Device updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Device"
+        "400":
+          description: Invalid input data provided
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Device not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: Device already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "422":
+          description: Input data could not be parsed
+          content:
+            application/json:
+              schema:
+                type: string
+                description: Parse error description
+        "500":
+          description: Internal error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InternalError"
+    delete:
+      tags:
+        - Device
+      security:
+        - api_key: []
+      summary: Delete device
+      operationId: deleteDevice
+      parameters:
+        - name: id
+          in: path
+          description: ID of the Device to be deleted
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Device"
+        "404":
+          description: Device not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Internal error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InternalError"
+  /device/{device_id}/key:
+    get:
+      tags:
+        - DeviceKey
+      security:
+        - api_key: []
+      summary: List all keys of the device
+      operationId: listDeviceKeys
+      parameters:
+        - name: device_id
+          in: path
+          description: ID of the Devicefor which the keys shall be fetched
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DeviceKey"
+        "404":
+          description: Device not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Internal error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InternalError"
+    post:
+      tags:
+        - DeviceKey
+      security:
+        - api_key: []
+      summary: Create a new key for the device
+      operationId: createDeviceKey
+      parameters:
+        - name: device_id
+          in: path
+          description: ID of the Device for which the key shall be created
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NewDeviceKey"
+      responses:
+        "201":
+          description: Device type created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeviceKey"
+        "404":
+          description: Device not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: Key with state "NEXT" already present on device
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "422":
+          description: Input data could not be parsed
+          content:
+            application/json:
+              schema:
+                type: string
+                description: Parse error description
+        "500":
+          description: Internal error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InternalError"
+  /device/{device_id}/key/{id}:
+    get:
+      tags:
+        - DeviceKey
+      security:
+        - api_key: []
+      summary: Get device key
+      operationId: getDeviceKey
+      parameters:
+        - name: device_id
+          in: path
+          description: ID of the Device which the key belongs to
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          description: ID of the DeviceKey to be returned
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeviceType"
+        "404":
+          description: Device type not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Internal error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InternalError"
+    delete:
+      tags:
+        - DeviceKey
+      security:
+        - api_key: []
+      summary: Delete device key
+      operationId: deleteDeviceKey
+      parameters:
+        - name: device_id
+          in: path
+          description: ID of the Device which the key belongs to
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          description: ID of the DeviceKey to be deleted
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeviceType"
+        "404":
+          description: Device type not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Internal error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InternalError"
+  /firmware:
+    get:
+      tags:
+        - Firmware
+      security:
+        - api_key: []
+      summary: List all firmwares
+      operationId: listFirmwares
+      responses:
+        "200":
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Firmware"
+        "500":
+          description: Internal error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InternalError"
+    post:
+      tags:
+        - Firmware
+      security:
+        - api_key: []
+      summary: Create a new firmware
+      operationId: createFirmware
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: "#/components/schemas/NewFirmware"
+      responses:
+        "201":
+          description: Firmware
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Firmware"
+        "400":
+          description: Invalid input data provided
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: Firmware already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "422":
+          description: Input data could not be parsed
+          content:
+            application/json:
+              schema:
+                type: string
+                description: Parse error description
+        "500":
+          description: Internal error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InternalError"
+  /firmware/{id}:
+    get:
+      tags:
+        - Firmware
+      security:
+        - api_key: []
+      summary: Get firmware
+      operationId: getFirmware
+      parameters:
+        - name: id
+          in: path
+          description: ID of the Firmware to be returned
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Firmware"
+        "404":
+          description: Firmware not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Internal error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InternalError"
+    delete:
+      tags:
+        - Firmware
+      security:
+        - api_key: []
+      summary: Delete firmware
+      operationId: deleteFirmware
+      parameters:
+        - name: id
+          in: path
+          description: ID of the Firmware to be deleted
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Firmware"
+        "404":
+          description: Firmware not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Internal error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InternalError"
+  /firmware/{id}/download:
+    head:
+      tags:
+        - Firmware
+      security:
+        - api_key: []
+      summary: Get firmware file metadata
+      operationId: getFirmwareFileMetadata
+      parameters:
+        - name: id
+          in: path
+          description: ID of the Firmware of which the file metadata should be returned
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: File metadata response
+          headers:
+            Content-Type:
+              schema:
+                type: string
+                examples: ["application/octet-stream"]
+            Content-Disposition:
+              description: Suggested filename
+              schema:
+                type: string
+                examples: ['attachment; filename="myfw-1.2.3-42.bin"']
+            ETag:
+              description: Strong ETag of the artifact (e.g., quoted SHA-256)
+              schema:
+                type: string
+                examples: ['"3d1b6f..."']
+            Content-Length:
+              description: Total size in bytes
+              schema:
+                type: integer
+                format: int64
+        "404":
+          description: Firmware not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Internal error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InternalError"
+    get:
+      tags:
+        - Firmware
+      security:
+        - api_key: []
+      summary: Get firmware file
+      operationId: getFirmwareFile
+      parameters:
+        - name: id
+          in: path
+          description: ID of the Firmware of which the file should be returned
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: File response
+          headers:
+            Content-Type:
+              schema:
+                type: string
+                examples: ["application/octet-stream"]
+            Content-Disposition:
+              description: Suggested filename
+              schema:
+                type: string
+                examples: ['attachment; filename="myfw-1.2.3-42.bin"']
+            ETag:
+              description: Strong ETag of the artifact (e.g., quoted SHA-256)
+              schema:
+                type: string
+                examples: ['"3d1b6f..."']
+            Content-Length:
+              description: Total size in bytes
+              schema:
+                type: integer
+                format: int64
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        "404":
+          description: Firmware not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Internal error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InternalError"
+  /device_type_firmware:
+    get:
+      tags:
+        - DeviceTypeFirmware
+      security:
+        - api_key: []
+      summary: List all device type <-> firmware linkings
+      operationId: listDeviceTypeFirmwares
+      responses:
+        "200":
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DeviceTypeFirmware"
+        "500":
+          description: Internal error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InternalError"
+    post:
+      tags:
+        - DeviceTypeFirmware
+      security:
+        - api_key: []
+      summary: Create a new device type <-> firmware link
+      operationId: createDeviceTypeFirmware
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NewDeviceTypeFirmware"
+      responses:
+        "201":
+          description: Device type <-> firmware link created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeviceTypeFirmware"
+        "400":
+          description: Invalid input data provided
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: Device type <-> firmware link already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "422":
+          description: Input data could not be parsed
+          content:
+            application/json:
+              schema:
+                type: string
+                description: Parse error description
+        "500":
+          description: Internal error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InternalError"
+  /device_type_firmware/{id}:
+    get:
+      tags:
+        - DeviceTypeFirmware
+      security:
+        - api_key: []
+      summary: Get device type <-> firmware link
+      operationId: getDeviceTypeFirmware
+      parameters:
+        - name: id
+          in: path
+          description: ID of the DeviceTypeFirmware to be returned
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeviceTypeFirmware"
+        "404":
+          description: Device type <-> firmware link not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Internal error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InternalError"
+    delete:
+      tags:
+        - DeviceTypeFirmware
+      security:
+        - api_key: []
+      summary: Delete device type <-> firmware link
+      operationId: deleteDeviceTypeFirmware
+      parameters:
+        - name: id
+          in: path
+          description: ID of the DeviceTypeFirmware to be deleted
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeviceTypeFirmware"
+        "404":
+          description: Device type <-> firmware link not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Internal error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InternalError"
+components:
+  schemas:
+    NewDeviceType:
+      type: object
+      properties:
+        name:
+          type: string
+      required:
+        - name
+    UpdateDeviceType:
+      type: object
+      properties:
+        name:
+          type: string
+    DeviceType:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+      required:
+        - id
+        - name
+    DeviceStatus:
+      type: string
+      enum: ["ACTIVE", "INACTIVE", "MAINTENANCE"]
+    NewDevice:
+      type: object
+      properties:
+        name:
+          type: string
+        type_:
+          description: Device type id
+          type: integer
+        firmware:
+          type: integer
+        desired_firmware:
+          type: integer
+        status:
+          $ref: "#/components/schemas/DeviceStatus"
+      required:
+        - name
+        - type_
+        - firmware
+        - desired_firmware
+        - status
+    UpdateDevice:
+      type: object
+      properties:
+        name:
+          type: string
+        type_:
+          description: Device type id
+          type: integer
+        firmware:
+          type: integer
+        desired_firmware:
+          type: integer
+        status:
+          $ref: "#/components/schemas/DeviceStatus"
+    Device:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        type_:
+          description: Device type id
+          type: integer
+        firmware:
+          type: integer
+        desired_firmware:
+          type: integer
+        status:
+          $ref: "#/components/schemas/DeviceStatus"
+      required:
+        - id
+        - name
+        - type_
+        - firmware
+        - desired_firmware
+        - status
+    KeyType:
+      type: string
+      enum: ["LIGHTWEIGHT"]
+    LightweightKeyAlgorithm:
+      type: string
+      enum: ["AES_GCM128", "ASCON_AEAD128"]
+    LightweightKeyDetails:
+      type: object
+      properties:
+        algorithm:
+          $ref: "#/components/schemas/LightweightKeyAlgorithm"
+        key:
+          type: string
+          format: byte
+          examples: ["RklSTVVQUyBydWxlcw=="]
+          description: Base64 encoded key matching the selected algorithm.
+      required:
+        - algorithm
+        - key
+    NewDeviceKey:
+      type: object
+      properties:
+        key_type:
+          $ref: "#/components/schemas/KeyType"
+        details:
+          $ref: "#/components/schemas/LightweightKeyDetails"
+      required:
+        - key_type
+        - details
+    DeviceKey:
+      type: object
+      properties:
+        id:
+          type: integer
+        key_type:
+          $ref: "#/components/schemas/KeyType"
+        details:
+          $ref: "#/components/schemas/LightweightKeyDetails"
+      required:
+        - key_type
+        - details
+    NewFirmware:
+      type: object
+      properties:
+        name:
+          type: string
+        version:
+          type: string
+        file:
+          type: string
+          format: binary
+      required:
+        - name
+        - version
+        - file
+    Firmware:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        version:
+          type: string
+        file_id:
+          type: string
+        size:
+          type: string
+        sha256:
+          type: string
+      required:
+        - name
+        - version
+        - file_id
+        - size
+        - sha256
+    NewDeviceTypeFirmware:
+      type: object
+      properties:
+        device_type:
+          description: Id of the device type to link
+          type: integer
+        firmware:
+          description: Id of the firmware to link
+          type: integer
+      required:
+        - device_type
+        - firmware
+    DeviceTypeFirmware:
+      type: object
+      properties:
+        id:
+          type: integer
+        device_type:
+          description: Id of the device type to link
+          type: integer
+        firmware:
+          description: Id of the firmware to link
+          type: integer
+    InternalError:
+      description: Masked internal error. The id can be matched with the backend logs.
+      type: object
+      properties:
+        error_id:
+          type: string
+      required:
+        - error_id
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error
+  requestBodies:
+
+  securitySchemes:
+    api_key:
+      type: apiKey
+      name: x-api-key
+      in: header

@@ -1,0 +1,16 @@
+services:
+  postgres:
+    image: postgres:18
+    container_name: postgres_db
+    #    restart: always
+    environment:
+      POSTGRES_USER: firmups_db
+      POSTGRES_PASSWORD: 575393l9HHiayZ9gKH35e
+      POSTGRES_DB: firmups_backend
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./pg:/var/lib/postgresql
+
+volumes:
+  postgres_data:
