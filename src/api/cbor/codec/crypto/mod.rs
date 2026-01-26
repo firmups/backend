@@ -8,10 +8,10 @@ pub enum CryptoAlgorithm {
 }
 
 pub enum CryptoError {
-    KeyError,
-    NonceError,
-    EncryptionError,
-    DecryptionError,
+    Key,
+    Nonce,
+    Encryption,
+    Decryption,
 }
 
 pub trait CryptoAead: Send + Sync {

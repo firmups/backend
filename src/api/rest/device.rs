@@ -121,7 +121,7 @@ pub async fn create_device(
             }
             Err(e) => Err(rest::error::internal_error(e)),
         };
-    return result;
+    result
 }
 
 #[axum::debug_handler]
@@ -250,7 +250,7 @@ pub async fn update_device(
             }
             Err(e) => Err(rest::error::internal_error(e)),
         };
-    return result;
+    result
 }
 
 #[axum::debug_handler]
@@ -275,12 +275,10 @@ pub async fn delete_device(
 
     match deleted {
         Ok(row) => Ok(Json(row)),
-        Err(diesel::result::Error::NotFound) => {
-            return Err(rest::error::client_error(
-                axum::http::StatusCode::NOT_FOUND,
-                format!("device {} not found", path_id),
-            ));
-        }
-        Err(e) => return Err(rest::error::internal_error(e)),
+        Err(diesel::result::Error::NotFound) => Err(rest::error::client_error(
+            axum::http::StatusCode::NOT_FOUND,
+            format!("device {} not found", path_id),
+        )),
+        Err(e) => Err(rest::error::internal_error(e)),
     }
 }

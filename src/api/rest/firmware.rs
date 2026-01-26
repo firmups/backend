@@ -53,29 +53,19 @@ pub async fn create_firmware(
         let field_name = field.name().unwrap_or("").to_string();
         match field_name.as_str() {
             "name" => {
-                in_name = match field.text().await {
-                    Ok(opt) => Some(opt),
-                    Err(_) => None,
-                };
+                in_name = field.text().await.ok();
             }
             "version" => {
-                in_version = match field.text().await {
-                    Ok(opt) => Some(opt),
-                    Err(_) => None,
-                };
+                in_version = field.text().await.ok();
             }
             "file" => {
-                in_file_bytes = match field.bytes().await {
-                    Ok(opt) => Some(opt.to_vec()),
-                    Err(_) => None,
-                };
+                in_file_bytes = field.bytes().await.ok().map(|b| b.to_vec());
             }
             _ => {}
         }
     }
 
     // Basic validation
-
     let in_name = match in_name {
         Some(v) if !v.is_empty() => v,
         _ => {
@@ -160,26 +150,26 @@ pub async fn create_firmware(
         .get_result(&mut conn)
         .await;
     match inserted {
-        Ok(record) => return Ok((StatusCode::CREATED, axum::Json(record))),
+        Ok(record) => Ok((StatusCode::CREATED, axum::Json(record))),
         Err(diesel::result::Error::DatabaseError(kind, info)) => {
             if kind == DatabaseErrorKind::UniqueViolation {
                 let _ = fs::remove_file(&path).await;
-                return Err(rest::error::client_error(
+                Err(rest::error::client_error(
                     StatusCode::CONFLICT,
                     format!(
                         "firmware '{}:{}' already exists",
                         new_firmware.name, new_firmware.version
                     ),
-                ));
+                ))
             } else {
                 let _ = fs::remove_file(&path).await;
                 let error = diesel::result::Error::DatabaseError(kind, info);
-                return Err(rest::error::internal_error(error));
+                Err(rest::error::internal_error(error))
             }
         }
         Err(err) => {
             let _ = fs::remove_file(&path).await;
-            return Err(rest::error::internal_error(err));
+            Err(rest::error::internal_error(err))
         }
     }
 }
@@ -422,23 +412,18 @@ pub async fn delete_firmware(
             path.push("firmware");
             path.push(&safe_name);
             let file_removal = fs::remove_file(path).await;
-            match file_removal {
-                Err(_) => {
-                    warn!(
-                        "File {} of firmware {} could not be removed",
-                        safe_name, row.id
-                    )
-                }
-                _ => (),
+            if file_removal.is_err() {
+                warn!(
+                    "File {} of firmware {} could not be removed",
+                    safe_name, row.id
+                );
             }
             Ok(Json(row))
         }
-        Err(diesel::result::Error::NotFound) => {
-            return Err(rest::error::client_error(
-                axum::http::StatusCode::NOT_FOUND,
-                format!("firmware {} not found", path_id),
-            ));
-        }
+        Err(diesel::result::Error::NotFound) => Err(rest::error::client_error(
+            axum::http::StatusCode::NOT_FOUND,
+            format!("firmware {} not found", path_id),
+        )),
         Err(e) => Err(rest::error::internal_error(e)),
     }
 }

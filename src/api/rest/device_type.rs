@@ -45,20 +45,20 @@ pub async fn create_device_type(
         .await;
 
     match result {
-        Ok(created) => return Ok((StatusCode::CREATED, Json(created))),
+        Ok(created) => Ok((StatusCode::CREATED, Json(created))),
         Err(diesel::result::Error::DatabaseError(kind, info)) => {
             // Handle uniqueness violation nicely (if you have a unique index on name)
             if kind == DatabaseErrorKind::UniqueViolation {
-                return Err(rest::error::client_error(
+                Err(rest::error::client_error(
                     StatusCode::CONFLICT,
                     format!("device type '{}' already exists", name_trimmed),
-                ));
+                ))
             } else {
                 let error = diesel::result::Error::DatabaseError(kind, info);
-                return Err(rest::error::internal_error(error));
+                Err(rest::error::internal_error(error))
             }
         }
-        Err(e) => return Err(rest::error::internal_error(e)),
+        Err(e) => Err(rest::error::internal_error(e)),
     }
 }
 
@@ -157,26 +157,24 @@ pub async fn update_device_type(
             .get_result(&mut conn)
             .await;
     match result {
-        Ok(created) => return Ok((StatusCode::CREATED, Json(created))),
-        Err(diesel::result::Error::NotFound) => {
-            return Err(rest::error::client_error(
-                axum::http::StatusCode::NOT_FOUND,
-                format!("device type {} not found", path_id),
-            ));
-        }
+        Ok(created) => Ok((StatusCode::CREATED, Json(created))),
+        Err(diesel::result::Error::NotFound) => Err(rest::error::client_error(
+            axum::http::StatusCode::NOT_FOUND,
+            format!("device type {} not found", path_id),
+        )),
         Err(diesel::result::Error::DatabaseError(kind, info)) => {
             // Handle uniqueness violation nicely (if you have a unique index on name)
             if kind == DatabaseErrorKind::UniqueViolation {
-                return Err(rest::error::client_error(
+                Err(rest::error::client_error(
                     StatusCode::CONFLICT,
-                    format!("device type with this name already exists"),
-                ));
+                    "device type with this name already exists".to_string(),
+                ))
             } else {
                 let error = diesel::result::Error::DatabaseError(kind, info);
-                return Err(rest::error::internal_error(error));
+                Err(rest::error::internal_error(error))
             }
         }
-        Err(e) => return Err(rest::error::internal_error(e)),
+        Err(e) => Err(rest::error::internal_error(e)),
     }
 }
 

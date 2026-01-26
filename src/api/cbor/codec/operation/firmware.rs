@@ -57,7 +57,7 @@ pub fn decode_get_firmware_request(
     firmware_request.offset = Some(decoder.u32()?);
     firmware_request.length = Some(decoder.u32()?);
 
-    Ok(firmware_request.try_into()?)
+    firmware_request.try_into()
 }
 
 pub fn encode_get_firmware_response(
@@ -72,7 +72,7 @@ pub fn encode_get_firmware_response(
     let _ = enc.u32(firmware_response.length);
     let _ = enc.bytes(&firmware_response.data);
 
-    let pos = cursor.position() as usize;
+    let pos = cursor.position();
     let inner = cursor.into_inner();
 
     Ok(inner[..pos].to_vec())

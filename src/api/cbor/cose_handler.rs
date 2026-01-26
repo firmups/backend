@@ -39,7 +39,7 @@ impl cose::KeyProvider for DbKeyProvider {
                 device_key_dsl::device_key
                     .inner_join(details_dsl::lightweight_key_details)
                     .filter(device_key_dsl::device.eq(device_id as i32))
-                    .filter(device_key_dsl::status.eq(KeyStatus::ACTIVE))
+                    .filter(device_key_dsl::status.eq(KeyStatus::Active))
                     .select((DeviceKey::as_select(), LightweightKeyDetails::as_select()))
                     .first(&mut conn)
                     .await
@@ -53,7 +53,7 @@ impl cose::KeyProvider for DbKeyProvider {
                             cose::KeyProviderError::DbError
                         }
                     })?;
-            if active_key.key_type != crate::db::models::KeyType::LIGHTWEIGHT {
+            if active_key.key_type != crate::db::models::KeyType::Lightweight {
                 warn!("Key type mismatch for device {}", device_id);
                 return Err(cose::KeyProviderError::KeyMismatch);
             }

@@ -2,9 +2,14 @@
   description = "FIRMUPS backend development environment";
 
   inputs.nixpkgs.url = "github:nixos/nixpkgs?ref=25.11";
+  inputs.git-hooks.url = "github:cachix/git-hooks.nix";
 
   outputs =
-    { self, nixpkgs }:
+    {
+      self,
+      nixpkgs,
+      git-hooks,
+    }:
     let
       supportedSystems = [
         "x86_64-linux"
@@ -15,25 +20,62 @@
       forAllSystems = f: nixpkgs.lib.genAttrs supportedSystems (system: f system);
     in
     {
-      devShells = forAllSystems (
+      checks = forAllSystems (
         system:
         let
           pkgs = import nixpkgs { inherit system; };
         in
         {
+          pre-commit-check = git-hooks.lib.${system}.run {
+            src = ./.;
+            hooks = {
+              nixfmt-rfc-style.enable = true;
+              clippy = {
+                enable = true;
+                settings = {
+                  allFeatures = true;
+                };
+              };
+              cargo-fmt = {
+                enable = true;
+                name = "cargo fmt (check)";
+                entry = "cargo fmt --all -- --check";
+                language = "system";
+                pass_filenames = false;
+              };
+              cargo-check = {
+                enable = true;
+                name = "cargo check";
+                entry = "cargo check --all-targets --all-features";
+                language = "system";
+                pass_filenames = false;
+              };
+            };
+          };
+        }
+      );
+      devShells = forAllSystems (
+        system:
+        let
+          pkgs = import nixpkgs { inherit system; };
+          preCommit = self.checks.${system}.pre-commit-check;
+        in
+        {
           default = pkgs.mkShell {
             name = "firmups-backend";
             buildInputs = with pkgs; [
-              rustc
-              cargo
-              rustfmt
+              rustup
+              rust-analyzer
               lldb_20
               diesel-cli
               libpq
               bashInteractive
               nixfmt-rfc-style
             ];
+            packages = [ preCommit.enabledPackages ];
             shellHook = ''
+              # Enable git hooks
+              ${preCommit.shellHook}
               export PS1="($name)$PS1"
               echo "Welcome to the $name devShell!"
             '';
@@ -99,18 +141,22 @@
             name = "firmups-backend";
             tag = "v0.1.0";
 
-            contents = [ 
+            contents = [
               backend
               pkgs.busybox
               pkgs.diesel-cli
             ];
 
             config = {
-              Cmd = [ "${pkgs.busybox}/bin/sh" "-c" "${pkgs.diesel-cli}/bin/diesel migration run && ${backend}/bin/firmups-backend" ];
+              Cmd = [
+                "${pkgs.busybox}/bin/sh"
+                "-c"
+                "${pkgs.diesel-cli}/bin/diesel migration run && ${backend}/bin/firmups-backend"
+              ];
               User = "65532:65532"; # nobody
               WorkingDir = "/opt/firmups";
             };
-  
+
             fakeRootCommands = ''
               mkdir -p ./opt/firmups
               mkdir -p ./opt/firmups/data

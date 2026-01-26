@@ -53,14 +53,11 @@ async fn api_key_mw(
             if let Some(peer) = peer_opt {
                 warn!(
                     "unauthorized access to endpoint \"{}\" from \"{:?}\"",
-                    req.uri().path().to_string(),
+                    req.uri().path(),
                     peer
                 );
             } else {
-                warn!(
-                    "unauthorized access to endpoint \"{}\"",
-                    req.uri().path().to_string()
-                );
+                warn!("unauthorized access to endpoint \"{}\"", req.uri().path());
             }
 
             unauthorized()
@@ -154,10 +151,7 @@ impl RestApi {
                 config.clone(),
                 api_key_mw,
             )); // apply globally
-        RestApi {
-            config: config,
-            router: router,
-        }
+        RestApi { config, router }
     }
 
     pub async fn start_blocking(&mut self) {

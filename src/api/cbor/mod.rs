@@ -26,7 +26,7 @@ pub struct CborApi {
 impl CborApi {
     pub fn new(config: CborApiConfig) -> Self {
         CborApi {
-            config: config,
+            config,
             joiner: None,
             cancel: CancellationToken::new(),
         }
@@ -78,7 +78,7 @@ async fn udp_loop(socket: UdpSocket, config: CborApiConfig, cancellation_token: 
                 let operation_bytes =
                     match cose_handler.decode_msg(&mut device_id, &mut opcode, &buf[..len]).await {
                         Ok(op) => op,
-                        Err(e) => {
+                        Err(_e) => {
                             error!("Failed to decode message from {addr}");//: {e}");
                             continue;
                         }
@@ -88,7 +88,7 @@ async fn udp_loop(socket: UdpSocket, config: CborApiConfig, cancellation_token: 
 
                 let response_buf = match cose_handler.encode_msg(opcode_response, &operation_response[..]).await {
                     Ok(b) => b,
-                    Err(e) => {
+                    Err(_e) => {
                         error!("Failed to encode COSE response");//: {e}");
                         continue;
                     }

@@ -76,10 +76,13 @@ jobs:
             include:
                 - os: ubuntu-latest
                   target: x86_64-unknown-linux-gnu
+                  bin: firmups-backend
                 - os: windows-latest
                   target: x86_64-pc-windows-msvc
+                  bin: firmups-backend.exe
                 - os: macos-latest
                   target: aarch64-apple-darwin
+                  bin: firmups-backend
       runs-on: ${{ matrix.os }}
 
       steps:
@@ -100,8 +103,8 @@ jobs:
 
         - uses: actions/upload-artifact@v4
           with:
-            name: binaries-${{ matrix.target }}
-            path: target/${{ matrix.target }}/release/
+            name: binary-${{ matrix.target }}
+            path: target/${{ matrix.target }}/release/${{ matrix.bin }}
             retention-days: 1
 
     publish-github-release:

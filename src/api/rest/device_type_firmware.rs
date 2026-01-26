@@ -30,25 +30,25 @@ pub async fn create_device_type_firmware(
             .get_result(&mut conn)
             .await;
     match result {
-        Ok(created) => return Ok((StatusCode::CREATED, Json(created))),
+        Ok(created) => Ok((StatusCode::CREATED, Json(created))),
         Err(diesel::result::Error::DatabaseError(kind, info)) => {
             // Handle uniqueness violation nicely (if you have a unique index on name)
             if kind == DatabaseErrorKind::UniqueViolation {
-                return Err(rest::error::client_error(
+                Err(rest::error::client_error(
                     StatusCode::CONFLICT,
-                    format!("device type firmware already exists"),
-                ));
+                    "device type firmware already exists".to_string(),
+                ))
             } else if kind == DatabaseErrorKind::ForeignKeyViolation {
-                return Err(rest::error::client_error(
+                Err(rest::error::client_error(
                     StatusCode::BAD_REQUEST,
                     "invalid device_type_id or firmware_id".to_string(),
-                ));
+                ))
             } else {
                 let error = diesel::result::Error::DatabaseError(kind, info);
-                return Err(rest::error::internal_error(error));
+                Err(rest::error::internal_error(error))
             }
         }
-        Err(e) => return Err(rest::error::internal_error(e)),
+        Err(e) => Err(rest::error::internal_error(e)),
     }
 }
 
@@ -131,12 +131,10 @@ pub async fn delete_device_type_firmware(
 
     match deleted {
         Ok(row) => Ok(Json(row)),
-        Err(diesel::result::Error::NotFound) => {
-            return Err(rest::error::client_error(
-                axum::http::StatusCode::NOT_FOUND,
-                format!("device_type_firmware {} not found", path_id),
-            ));
-        }
-        Err(e) => return Err(rest::error::internal_error(e)),
+        Err(diesel::result::Error::NotFound) => Err(rest::error::client_error(
+            axum::http::StatusCode::NOT_FOUND,
+            format!("device_type_firmware {} not found", path_id),
+        )),
+        Err(e) => Err(rest::error::internal_error(e)),
     }
 }

@@ -6,6 +6,7 @@ pub fn encode_operation_error(error: super::OperationError) -> Vec<u8> {
     buf
 }
 
+#[allow(dead_code)]
 pub fn decode_operation_error(
     operation: &[u8],
 ) -> Result<super::OperationError, minicbor::decode::Error> {

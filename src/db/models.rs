@@ -22,11 +22,11 @@ pub enum CryptoAlgorithm {
 #[DbValueStyle = "snake_case"]
 pub enum DeviceStatus {
     #[db_rename = "ACTIVE"]
-    ACTIVE = 0,
+    Active = 0,
     #[db_rename = "INACTIVE"]
-    INACTIVE = 1,
+    Inactive = 1,
     #[db_rename = "MAINTENANCE"]
-    MAINTENANCE = 2,
+    Maintenance = 2,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, DbEnum, serde::Serialize, serde::Deserialize)]
@@ -34,11 +34,11 @@ pub enum DeviceStatus {
 #[DbValueStyle = "snake_case"]
 pub enum KeyStatus {
     #[db_rename = "ACTIVE"]
-    ACTIVE,
+    Active,
     #[db_rename = "NEXT"]
-    NEXT,
+    Next,
     #[db_rename = "EXPIRED"]
-    EXPIRED,
+    Expired,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, DbEnum)]
@@ -46,20 +46,20 @@ pub enum KeyStatus {
 #[DbValueStyle = "snake_case"]
 pub enum KeyType {
     #[db_rename = "LIGHTWEIGHT"]
-    LIGHTWEIGHT,
+    Lightweight,
     #[db_rename = "TLS"]
-    TLS,
+    Tls,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, DbEnum)]
 #[ExistingTypePath = "crate::db::schema::sql_types::ParameterType"]
 #[DbValueStyle = "snake_case"]
 pub enum ParameterType {
-    STRING,
-    INTEGER,
-    BOOLEAN,
-    FLOAT,
-    BINARY,
+    String,
+    Integer,
+    Boolean,
+    Float,
+    Binary,
 }
 
 // -----------------------------

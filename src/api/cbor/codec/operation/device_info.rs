@@ -72,7 +72,7 @@ pub fn decode_get_device_info_request(
     }
     parameter_request.device_id = Some(decoder.u32()?);
 
-    Ok(parameter_request.try_into()?)
+    parameter_request.try_into()
 }
 
 pub fn encode_get_device_info_response(
@@ -81,12 +81,8 @@ pub fn encode_get_device_info_response(
     let mut buf = Vec::with_capacity(256);
     let mut enc = minicbor::Encoder::new(&mut buf);
     let _ = enc.array(3);
-    if device_info_response.firmware.is_some() {
-        let _ = enc.u32(
-            device_info_response
-                .firmware
-                .expect("Firmware must be some"),
-        );
+    if let Some(fw) = device_info_response.firmware {
+        let _ = enc.u32(fw);
     } else {
         let _ = enc.null();
     }
@@ -113,7 +109,7 @@ pub fn decode_set_device_info_request(
     set_device_info_request.firmware = Some(decoder.u32()?);
     set_device_info_request.status = Some(decoder.u8()?);
 
-    Ok(set_device_info_request.try_into()?)
+    set_device_info_request.try_into()
 }
 
 pub fn encode_set_device_info_response(

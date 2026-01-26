@@ -19,9 +19,9 @@ impl TryFrom<u8> for DeviceStatus {
     type Error = minicbor::decode::Error;
     fn try_from(src: u8) -> Result<Self, Self::Error> {
         match src {
-            0 => Ok(DeviceStatus::ACTIVE),
-            1 => Ok(DeviceStatus::INACTIVE),
-            2 => Ok(DeviceStatus::MAINTENANCE),
+            0 => Ok(DeviceStatus::Active),
+            1 => Ok(DeviceStatus::Inactive),
+            2 => Ok(DeviceStatus::Maintenance),
             _ => Err(minicbor::decode::Error::message(format!(
                 "Unknown device status {}",
                 src
@@ -78,15 +78,14 @@ impl OperationHandler {
             operation::OperationType::GetDeviceInfoRequest => {
                 use crate::db::schema::device::dsl::*;
 
-                let req =
-                    match operation::device_info::decode_get_device_info_request(&operation[..]) {
-                        Ok(r) => r,
-                        Err(e) => {
-                            error!("Failed to decode operation from {}: {}", self.addr, e);
-                            return self
-                                .handle_error_operation(operation::OperationError::DecodingError);
-                        }
-                    };
+                let req = match operation::device_info::decode_get_device_info_request(operation) {
+                    Ok(r) => r,
+                    Err(e) => {
+                        error!("Failed to decode operation from {}: {}", self.addr, e);
+                        return self
+                            .handle_error_operation(operation::OperationError::DecodingError);
+                    }
+                };
 
                 let mut conn = match self.config.shared_pool.clone().get_owned().await {
                     Ok(c) => c,
@@ -115,12 +114,7 @@ impl OperationHandler {
                     }
                 };
 
-                let fw = if result.firmware.is_some() {
-                    Some(result.firmware.expect("Firmware must be some") as u32)
-                } else {
-                    None
-                };
-
+                let fw = result.firmware.map(|fw| fw as u32);
                 info!("get_device_info request from device={}", req.device_id);
                 let response = operation::device_info::GetDeviceInfoResponse {
                     firmware: fw,
@@ -141,15 +135,14 @@ impl OperationHandler {
             operation::OperationType::SetDeviceInfoRequest => {
                 use crate::db::schema::device::dsl::*;
 
-                let req =
-                    match operation::device_info::decode_set_device_info_request(&operation[..]) {
-                        Ok(r) => r,
-                        Err(e) => {
-                            error!("Failed to decode operation from {}: {}", self.addr, e);
-                            return self
-                                .handle_error_operation(operation::OperationError::DecodingError);
-                        }
-                    };
+                let req = match operation::device_info::decode_set_device_info_request(operation) {
+                    Ok(r) => r,
+                    Err(e) => {
+                        error!("Failed to decode operation from {}: {}", self.addr, e);
+                        return self
+                            .handle_error_operation(operation::OperationError::DecodingError);
+                    }
+                };
 
                 let mut conn = match self.config.shared_pool.clone().get_owned().await {
                     Ok(c) => c,
@@ -233,7 +226,7 @@ impl OperationHandler {
                     }
                     Err(diesel::result::Error::DatabaseError(
                         DatabaseErrorKind::UniqueViolation,
-                        info,
+                        _info,
                     )) => {
                         warn!("Unique constraint violation when updating device");
                         Err(self.handle_error_operation(operation::OperationError::InternalError))
@@ -280,7 +273,7 @@ impl OperationHandler {
             operation::OperationType::GetFirmwareRequest => {
                 use crate::db::schema::firmware::dsl::*;
 
-                let req = match operation::firmware::decode_get_firmware_request(&operation[..]) {
+                let req = match operation::firmware::decode_get_firmware_request(operation) {
                     Ok(r) => r,
                     Err(e) => {
                         error!("Failed to decode operation from {}: {}", self.addr, e);
@@ -388,7 +381,7 @@ impl OperationHandler {
                 return self.handle_error_operation(operation::OperationError::InvalidOperation);
             }
         }
-        return response_buf;
+        response_buf
     }
 
     fn handle_error_operation(&self, error: operation::OperationError) -> (u16, Vec<u8>) {

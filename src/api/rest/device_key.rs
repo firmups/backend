@@ -112,7 +112,7 @@ pub async fn create_device_key(
             Box::pin(async move {
                 let kind: DeviceKeyKind;
                 let key_type: KeyType;
-                let mut key_status: KeyStatus = KeyStatus::NEXT;
+                let mut key_status: KeyStatus = KeyStatus::Next;
 
                 // Lock device to prevent multiple keys being created simultaneously
                 diesel::dsl::sql_query("SELECT pg_advisory_xact_lock($1)")
@@ -122,7 +122,7 @@ pub async fn create_device_key(
 
                 match payload.kind.clone() {
                     NewDeviceKeyKind::Lightweight { details: det } => {
-                        key_type = KeyType::LIGHTWEIGHT;
+                        key_type = KeyType::Lightweight;
                         match det.algorithm {
                             CryptoAlgorithm::AsconAead128  => {
                                 if det.key.len() != 16 /* ToDo: Replace magic number */ {
@@ -153,13 +153,13 @@ pub async fn create_device_key(
                         }
                     }
                     NewDeviceKeyKind::Tls { details: _ } => {
-                        key_type = KeyType::TLS;
+                        key_type = KeyType::Tls;
                     }
                 }
 
                 let next_filter = key_dsl::device_key
                     .filter(key_dsl::device.eq(device_id))
-                    .filter(key_dsl::status.eq(KeyStatus::NEXT));
+                    .filter(key_dsl::status.eq(KeyStatus::Next));
                 let next_exists: bool = diesel::select(diesel::dsl::exists(next_filter))
                     .get_result(conn)
                     .await?;
@@ -176,7 +176,7 @@ pub async fn create_device_key(
                 }
                 let active_filter = key_dsl::device_key
                     .filter(key_dsl::device.eq(device_id))
-                    .filter(key_dsl::status.eq(KeyStatus::ACTIVE));
+                    .filter(key_dsl::status.eq(KeyStatus::Active));
                 let active_exists: bool = diesel::select(diesel::dsl::exists(active_filter))
                     .get_result(conn)
                     .await?;
@@ -185,12 +185,12 @@ pub async fn create_device_key(
                         "No ACTIVE key on device {}, setting new key to ACTIVE (initial provisioning)",
                         device_id
                     );
-                    key_status = KeyStatus::ACTIVE;
+                    key_status = KeyStatus::Active;
                 }
 
                 let new_device_key = crate::db::models::NewDeviceKey {
                     device: device_id,
-                    key_type: key_type,
+                    key_type,
                     status: key_status,
                 };
                 let device_key: DeviceKey = diesel::insert_into(key_dsl::device_key)
@@ -285,12 +285,12 @@ pub async fn list_device_keys(
         .left_outer_join(
             lw::table.on(lw_dsl::device_key
                 .eq(key_dsl::id)
-                .and(key_dsl::key_type.eq(KeyType::LIGHTWEIGHT))),
+                .and(key_dsl::key_type.eq(KeyType::Lightweight))),
         )
         .left_outer_join(
             tls::table.on(tls_dsl::device_key
                 .eq(key_dsl::id)
-                .and(key_dsl::key_type.eq(KeyType::TLS))),
+                .and(key_dsl::key_type.eq(KeyType::Tls))),
         )
         .select((
             dk::all_columns,
@@ -301,7 +301,7 @@ pub async fn list_device_keys(
         .await
         .map_err(rest::error::internal_error)?;
 
-    if rows.len() == 0 {
+    if rows.is_empty() {
         return Err(rest::error::client_error(
             StatusCode::NOT_FOUND,
             format!("device {} not found", device_id),
@@ -329,7 +329,7 @@ pub async fn list_device_keys(
         res.push(DeviceKeyPayload {
             id: key.id,
             status: key.status,
-            kind: kind,
+            kind,
         });
     }
 
@@ -360,12 +360,12 @@ pub async fn get_device_key(
         .left_outer_join(
             lw::table.on(lw_dsl::device_key
                 .eq(key_dsl::id)
-                .and(key_dsl::key_type.eq(KeyType::LIGHTWEIGHT))),
+                .and(key_dsl::key_type.eq(KeyType::Lightweight))),
         )
         .left_outer_join(
             tls::table.on(tls_dsl::device_key
                 .eq(key_dsl::id)
-                .and(key_dsl::key_type.eq(KeyType::TLS))),
+                .and(key_dsl::key_type.eq(KeyType::Tls))),
         )
         .select((
             dk::all_columns,
@@ -392,22 +392,18 @@ pub async fn get_device_key(
                     },
                 ));
             }
-            return Ok(Json(DeviceKeyPayload {
+            Ok(Json(DeviceKeyPayload {
                 id: key.id,
                 status: key.status,
-                kind: kind,
-            }));
+                kind,
+            }))
         }
-        Err(diesel::result::Error::NotFound) => {
-            return Err(rest::error::client_error(
-                StatusCode::NOT_FOUND,
-                format!("device {} or device key {} not found", device_id, path_id),
-            ));
-        }
-        Err(e) => {
-            return Err(rest::error::internal_error(e));
-        }
-    };
+        Err(diesel::result::Error::NotFound) => Err(rest::error::client_error(
+            StatusCode::NOT_FOUND,
+            format!("device {} or device key {} not found", device_id, path_id),
+        )),
+        Err(e) => Err(rest::error::internal_error(e)),
+    }
 }
 
 #[axum::debug_handler]
@@ -428,7 +424,7 @@ pub async fn delete_device_key(
                 let active_filter = key_dsl::device_key
                     .filter(key_dsl::id.eq(path_id))
                     .filter(key_dsl::device.eq(device_id))
-                    .filter(key_dsl::status.eq(KeyStatus::ACTIVE));
+                    .filter(key_dsl::status.eq(KeyStatus::Active));
                 let is_active: bool = diesel::select(diesel::dsl::exists(active_filter))
                     .get_result(conn)
                     .await?;
@@ -451,12 +447,12 @@ pub async fn delete_device_key(
                     .left_outer_join(
                         lw::table.on(lw_dsl::device_key
                             .eq(key_dsl::id)
-                            .and(key_dsl::key_type.eq(KeyType::LIGHTWEIGHT))),
+                            .and(key_dsl::key_type.eq(KeyType::Lightweight))),
                     )
                     .left_outer_join(
                         tls::table.on(tls_dsl::device_key
                             .eq(key_dsl::id)
-                            .and(key_dsl::key_type.eq(KeyType::TLS))),
+                            .and(key_dsl::key_type.eq(KeyType::Tls))),
                     )
                     .select((
                         dk::all_columns,
@@ -488,23 +484,21 @@ pub async fn delete_device_key(
                         .get_result(&mut conn)
                         .await?;
 
-                return Ok(DeviceKeyPayload {
+                Ok(DeviceKeyPayload {
                     id: key.id,
                     status: key.status,
-                    kind: kind,
-                });
+                    kind,
+                })
             })
         })
         .await;
     match tx_result {
-        Ok(device_key_payload) => {
-            return Ok(Json(device_key_payload));
-        }
+        Ok(device_key_payload) => Ok(Json(device_key_payload)),
         Err(rest::error::TransactionError::Db(diesel::result::Error::NotFound)) => {
-            return Err(rest::error::client_error(
+            Err(rest::error::client_error(
                 StatusCode::NOT_FOUND,
                 format!("device {} or device key {} not found", device_id, path_id),
-            ));
+            ))
         }
         Err(rest::error::TransactionError::Db(e)) => Err(rest::error::internal_error(e)),
         Err(rest::error::TransactionError::Api(api)) => Err(api),
