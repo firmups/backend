@@ -1,6 +1,5 @@
-
-name: "Cargo Check"
-description: "Run cargo check for fast linting and type checking"
+name: "Cargo Format"
+description: "Run cargo fmt and fail if formatting is incorrect"
 
 inputs:
   toolchain:
@@ -15,9 +14,10 @@ runs:
       uses: actions-rs/toolchain@v1
       with:
         toolchain: ${{ inputs.toolchain }}
+        components: rustfmt
         override: true
 
-    - name: Run cargo check
+    - name: Run cargo fmt
       shell: bash
       run: |
-        cargo check --all-targets --all-features
+        cargo fmt --all -- --check

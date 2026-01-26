@@ -1,0 +1,64 @@
+name: "Cargo Production Build"
+description: "Build Rust project in optimized release mode"
+
+inputs:
+  toolchain:
+    description: "Rust toolchain to use"
+    required: false
+    default: "stable"
+
+  target:
+    description: "Rust target triple (e.g. x86_64-unknown-linux-gnu)"
+    required: false
+    default: ""
+
+  features:
+    description: "Cargo features to enable"
+    required: false
+    default: ""
+
+  locked:
+    description: "Use Cargo.lock (--locked)"
+    required: false
+    default: "true"
+
+  workspace:
+    description: "Build entire workspace"
+    required: false
+    default: "true"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Install Rust toolchain
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: ${{ inputs.toolchain }}
+        target: ${{ inputs.target }}
+        override: true
+
+    - name: Build release binary
+      shell: bash
+      run: |
+        set -euo pipefail
+
+        CMD="cargo build --release"
+
+        if [[ "${{ inputs.workspace }}" == "true" ]]; then
+          CMD="$CMD --workspace"
+        fi
+
+        if [[ -n "${{ inputs.features }}" ]]; then
+          CMD="$CMD --features '${{ inputs.features }}'"
+        fi
+
+        if [[ "${{ inputs.locked }}" == "true" ]]; then
+          CMD="$CMD --locked"
+        fi
+
+        if [[ -n "${{ inputs.target }}" ]]; then
+          CMD="$CMD --target ${{ inputs.target }}"
+        fi
+
+        echo "Running: $CMD"
+        eval "$CMD"

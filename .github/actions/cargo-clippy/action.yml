@@ -1,12 +1,16 @@
-
-name: "Cargo Format"
-description: "Run cargo fmt and fail if formatting is incorrect"
+name: "Cargo Clippy"
+description: "Run cargo clippy with warnings treated as errors"
 
 inputs:
   toolchain:
     description: "Rust toolchain"
     required: false
     default: "stable"
+
+  args:
+    description: "Extra clippy arguments"
+    required: false
+    default: ""
 
 runs:
   using: "composite"
@@ -15,10 +19,10 @@ runs:
       uses: actions-rs/toolchain@v1
       with:
         toolchain: ${{ inputs.toolchain }}
-        components: rustfmt
+        components: clippy
         override: true
 
-    - name: Run cargo fmt
+    - name: Run cargo clippy
       shell: bash
       run: |
-        cargo fmt --all -- --check
+        cargo clippy --all-targets --all-features -- -D warnings ${{ inputs.args }}

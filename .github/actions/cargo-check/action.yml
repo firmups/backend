@@ -1,17 +1,11 @@
-
-name: "Cargo Clippy"
-description: "Run cargo clippy with warnings treated as errors"
+name: "Cargo Check"
+description: "Run cargo check for fast linting and type checking"
 
 inputs:
   toolchain:
     description: "Rust toolchain"
     required: false
     default: "stable"
-
-  args:
-    description: "Extra clippy arguments"
-    required: false
-    default: ""
 
 runs:
   using: "composite"
@@ -20,10 +14,9 @@ runs:
       uses: actions-rs/toolchain@v1
       with:
         toolchain: ${{ inputs.toolchain }}
-        components: clippy
         override: true
 
-    - name: Run cargo clippy
+    - name: Run cargo check
       shell: bash
       run: |
-        cargo clippy --all-targets --all-features -- -D warnings ${{ inputs.args }}
+        cargo check --all-targets --all-features
