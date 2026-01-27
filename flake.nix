@@ -3,12 +3,16 @@
 
   inputs.nixpkgs.url = "github:nixos/nixpkgs?ref=25.11";
   inputs.git-hooks.url = "github:cachix/git-hooks.nix";
-
+  inputs.rust-overlay = {
+    url = "github:oxalica/rust-overlay";
+    inputs.nixpkgs.follows = "nixpkgs";
+  };
   outputs =
     {
       self,
       nixpkgs,
       git-hooks,
+      rust-overlay,
     }:
     let
       supportedSystems = [
@@ -23,30 +27,41 @@
       checks = forAllSystems (
         system:
         let
-          pkgs = import nixpkgs { inherit system; };
+          pkgs = import nixpkgs {
+            inherit system;
+            overlays = [ (import rust-overlay) ];
+          };
+          rustToolchain = pkgs.rust-bin.stable.latest.default.override {
+            extensions = [
+              "clippy"
+              "rustfmt"
+              "rust-src"
+            ];
+          };
         in
         {
           pre-commit-check = git-hooks.lib.${system}.run {
             src = ./.;
             hooks = {
               nixfmt-rfc-style.enable = true;
-              clippy = {
+              cargo-clippy = {
                 enable = true;
-                settings = {
-                  allFeatures = true;
-                };
+                name = "cargo clippy";
+                entry = "${rustToolchain}/bin/cargo clippy --all-features --all-targets -- -D warnings";
+                language = "system";
+                pass_filenames = false;
               };
               cargo-fmt = {
                 enable = true;
                 name = "cargo fmt (check)";
-                entry = "cargo fmt --all -- --check";
+                entry = "${rustToolchain}/bin/cargo fmt --all -- --check";
                 language = "system";
                 pass_filenames = false;
               };
               cargo-check = {
                 enable = true;
                 name = "cargo check";
-                entry = "cargo check --all-targets --all-features";
+                entry = "${rustToolchain}/bin/cargo check --all-targets --all-features";
                 language = "system";
                 pass_filenames = false;
               };
@@ -54,17 +69,28 @@
           };
         }
       );
+
       devShells = forAllSystems (
         system:
         let
-          pkgs = import nixpkgs { inherit system; };
+          pkgs = import nixpkgs {
+            inherit system;
+            overlays = [ (import rust-overlay) ];
+          };
+          rustToolchain = pkgs.rust-bin.stable.latest.default.override {
+            extensions = [
+              "clippy"
+              "rustfmt"
+              "rust-src"
+            ];
+          };
           preCommit = self.checks.${system}.pre-commit-check;
         in
         {
           default = pkgs.mkShell {
             name = "firmups-backend";
             buildInputs = with pkgs; [
-              rustup
+              rustToolchain
               rust-analyzer
               lldb_20
               diesel-cli
@@ -86,8 +112,21 @@
       packages = forAllSystems (
         system:
         let
-          pkgs = import nixpkgs { inherit system; };
-          rustPlatform = pkgs.rustPlatform;
+          pkgs = import nixpkgs {
+            inherit system;
+            overlays = [ (import rust-overlay) ];
+          };
+          rustToolchain = pkgs.rust-bin.stable.latest.default.override {
+            extensions = [
+              "clippy"
+              "rustfmt"
+              "rust-src"
+            ];
+          };
+          rustPlatform = pkgs.makeRustPlatform {
+            rustc = rustToolchain;
+            cargo = rustToolchain;
+          };
         in
         {
           # Build your Rust crate/workspace with `nix build .#backend`
@@ -102,23 +141,18 @@
             # First run with a dummy hash (sha256-AAAAAAAA...) to get the correct hash from the error.
             cargoHash = "sha256-DM4itoS4SyadoigqXioBxW9HX35JwLwhrow4BkrcUmY=";
 
-            # If your project needs system libs (e.g., libpq for Diesel)
             buildInputs = with pkgs; [
             ];
             nativeBuildInputs = with pkgs; [
               pkg-config
             ];
 
-            # If your crate name is NOT `firmups-backend`, set cargoBuildFlags or override Cargo.toml accordingly.
+            # If your crate name differs from `firmups-backend`, adjust flags:
             # cargoBuildFlags = [ "--package" "your-crate-name" ];
 
-            # If you need to enable/disable features:
-            # buildFeatures = [ "some-feature" ];
+            # Feature toggles if needed:
             # buildNoDefaultFeatures = true;
             # buildFeatures = [ "default" "extra" ];
-
-            # Optionally expose a binary name if your Cargo produces it
-            # (buildRustPackage detects it automatically if Cargo.toml has [[bin]]).
           };
           dockerImage = self.dockerImages.${system}.dockerImage;
 
