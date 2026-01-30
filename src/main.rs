@@ -115,7 +115,7 @@ async fn main() {
         }
         Err(_) => {
             info!("FIRMUPS_API_KEY not set generating random key...");
-            const CHARSET: &'static [u8; 62] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZ\
+            const CHARSET: &[u8; 62] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZ\
                               abcdefghijklmnopqrstuvwxyz\
                               0123456789";
             const LENGTH: usize = 32;
@@ -139,8 +139,8 @@ async fn main() {
         listen_address: rest_addr,
         shared_pool: shared_pool.clone(),
         data_storage_location: data_path.clone(),
-        max_firmware_size: max_firmware_size,
-        api_key: api_key,
+        max_firmware_size,
+        api_key,
     };
     let mut rest_api = api::rest::RestApi::new(rest_api_config);
     rest_api.start_blocking().await;

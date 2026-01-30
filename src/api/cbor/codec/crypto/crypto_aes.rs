@@ -27,10 +27,10 @@ impl crypto::CryptoAead for CryptoAes128Gcm {
         plaintext: &[u8],
     ) -> Result<Vec<u8>, crypto::CryptoError> {
         if key.len() != 16 {
-            return Err(crypto::CryptoError::KeyError);
+            return Err(crypto::CryptoError::Key);
         }
         if nonce.len() != self.nonce_len() {
-            return Err(crypto::CryptoError::NonceError);
+            return Err(crypto::CryptoError::Nonce);
         }
 
         let key = Key::<Aes128Gcm>::from_slice(key);
@@ -39,12 +39,12 @@ impl crypto::CryptoAead for CryptoAes128Gcm {
 
         let payload: Payload = Payload {
             msg: plaintext,
-            aad: aad,
+            aad,
         };
 
         let ciphertext = cipher
             .encrypt(nonce, payload)
-            .map_err(|_| crypto::CryptoError::EncryptionError)?;
+            .map_err(|_| crypto::CryptoError::Encryption)?;
 
         Ok(ciphertext)
     }
@@ -57,10 +57,10 @@ impl crypto::CryptoAead for CryptoAes128Gcm {
         ciphertext: &[u8],
     ) -> Result<Vec<u8>, crypto::CryptoError> {
         if key.len() != 16 {
-            return Err(crypto::CryptoError::KeyError);
+            return Err(crypto::CryptoError::Key);
         }
         if nonce.len() != self.nonce_len() {
-            return Err(crypto::CryptoError::NonceError);
+            return Err(crypto::CryptoError::Nonce);
         }
 
         let key = Key::<Aes128Gcm>::from_slice(key);
@@ -69,12 +69,12 @@ impl crypto::CryptoAead for CryptoAes128Gcm {
 
         let payload: Payload = Payload {
             msg: ciphertext,
-            aad: aad,
+            aad,
         };
 
         let plaintext = cipher
             .decrypt(nonce, payload)
-            .map_err(|_| crypto::CryptoError::DecryptionError)?;
+            .map_err(|_| crypto::CryptoError::Decryption)?;
 
         Ok(plaintext)
     }

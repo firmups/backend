@@ -101,6 +101,6 @@ pub struct FirmupsRestInternalError {
 
 impl fmt::Display for FirmupsRestInternalError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        return write!(f, "{}", self.message);
+        write!(f, "{}", self.message)
     }
 }

@@ -26,9 +26,9 @@ impl crypto::CryptoAead for CryptoAsconAead128 {
         aad: &[u8],
         plaintext: &[u8],
     ) -> Result<Vec<u8>, crypto::CryptoError> {
-        let key = Key::<AsconAead128>::try_from(key).map_err(|_| crypto::CryptoError::KeyError)?;
+        let key = Key::<AsconAead128>::try_from(key).map_err(|_| crypto::CryptoError::Key)?;
         let nonce =
-            Nonce::<AsconAead128>::try_from(nonce).map_err(|_| crypto::CryptoError::NonceError)?;
+            Nonce::<AsconAead128>::try_from(nonce).map_err(|_| crypto::CryptoError::Nonce)?;
         let cipher = AsconAead128::new(&key);
 
         let ciphertext = cipher
@@ -36,10 +36,10 @@ impl crypto::CryptoAead for CryptoAsconAead128 {
                 &nonce,
                 Payload {
                     msg: plaintext,
-                    aad: aad,
+                    aad,
                 },
             )
-            .map_err(|_| crypto::CryptoError::EncryptionError)?;
+            .map_err(|_| crypto::CryptoError::Encryption)?;
 
         Ok(ciphertext)
     }
@@ -51,9 +51,9 @@ impl crypto::CryptoAead for CryptoAsconAead128 {
         aad: &[u8],
         ciphertext: &[u8],
     ) -> Result<Vec<u8>, crypto::CryptoError> {
-        let key = Key::<AsconAead128>::try_from(key).map_err(|_| crypto::CryptoError::KeyError)?;
+        let key = Key::<AsconAead128>::try_from(key).map_err(|_| crypto::CryptoError::Key)?;
         let nonce =
-            Nonce::<AsconAead128>::try_from(nonce).map_err(|_| crypto::CryptoError::NonceError)?;
+            Nonce::<AsconAead128>::try_from(nonce).map_err(|_| crypto::CryptoError::Nonce)?;
         let cipher = AsconAead128::new(&key);
 
         let plaintext = cipher
@@ -61,10 +61,10 @@ impl crypto::CryptoAead for CryptoAsconAead128 {
                 &nonce,
                 Payload {
                     msg: ciphertext,
-                    aad: aad,
+                    aad,
                 },
             )
-            .map_err(|_| crypto::CryptoError::DecryptionError)?;
+            .map_err(|_| crypto::CryptoError::Decryption)?;
 
         Ok(plaintext)
     }

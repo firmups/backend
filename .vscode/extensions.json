@@ -2,6 +2,7 @@
     "recommendations": [
         "llvm-vs-code-extensions.lldb-dap",
         "bbenoist.nix",
-        "rust-lang.rust-analyzer"
+        "rust-lang.rust-analyzer",
+        "jnoortheen.nix-ide"
     ]
 }

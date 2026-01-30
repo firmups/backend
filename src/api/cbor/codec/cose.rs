@@ -130,10 +130,8 @@ impl From<crypto::CryptoAlgorithm> for CoseAlgorithmIdentifier {
 }
 
 impl From<minicbor::decode::Error> for CoseCodecError {
-    fn from(src: minicbor::decode::Error) -> CoseCodecError {
-        match src {
-            _ => CoseCodecError::InvalidMessage,
-        }
+    fn from(_src: minicbor::decode::Error) -> CoseCodecError {
+        CoseCodecError::InvalidMessage
     }
 }
 
@@ -220,20 +218,15 @@ pub async fn encode_msg(
     let mut buf = Vec::with_capacity(256);
     let mut enc = Encoder::new(&mut buf);
 
-    let crypto_alg: Box<dyn crypto::CryptoAead>;
-    match key_type {
-        KeyType::AesGcm128 => {
-            crypto_alg = Box::new(crypto::crypto_aes::CryptoAes128Gcm);
-        }
-        KeyType::AsconAead128 => {
-            crypto_alg = Box::new(crypto::crypto_ascon::CryptoAsconAead128);
-        }
+    let crypto_alg: Box<dyn crypto::CryptoAead> = match key_type {
+        KeyType::AesGcm128 => Box::new(crypto::crypto_aes::CryptoAes128Gcm),
+        KeyType::AsconAead128 => Box::new(crypto::crypto_ascon::CryptoAsconAead128),
     };
 
     let mut nonce = vec![0u8; crypto_alg.nonce_len()];
     getrandom::fill(&mut nonce[..]).map_err(|_| CoseCodecError::RandomnessFailed)?;
     let protected_header = ProtectedHeader {
-        device_id: device_id,
+        device_id,
         opcode: operation_id,
         encryption_algorithm: crypto_alg.alg_id().into(),
         nonce: nonce.to_vec(),
@@ -289,7 +282,7 @@ fn encode_protected_header(protected_header: ProtectedHeader) -> Vec<u8> {
 fn decode_protected_header(
     protected_header_buf: &[u8],
 ) -> Result<ProtectedHeaderDecode, CoseCodecError> {
-    let mut decoder = Decoder::new(&protected_header_buf);
+    let mut decoder = Decoder::new(protected_header_buf);
     let map_size = decoder.map()?;
     let mut header_count: u64 = 0;
 
@@ -306,11 +299,9 @@ fn decode_protected_header(
                 break;
             }
             header_count += 1;
-        } else {
-            if decoder.datatype()? == minicbor::data::Type::Break {
-                decoder.skip()?;
-                break;
-            }
+        } else if decoder.datatype()? == minicbor::data::Type::Break {
+            decoder.skip()?;
+            break;
         }
 
         let header_key = decoder.u16()?;
@@ -340,11 +331,9 @@ fn decode_protected_header(
                             break;
                         }
                         critical_header_count += 1;
-                    } else {
-                        if decoder.datatype()? == minicbor::data::Type::Break {
-                            decoder.skip()?;
-                            break;
-                        }
+                    } else if decoder.datatype()? == minicbor::data::Type::Break {
+                        decoder.skip()?;
+                        break;
                     }
 
                     let header_id = decoder.u16()?;
