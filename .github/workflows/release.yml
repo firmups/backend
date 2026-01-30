@@ -1,4 +1,4 @@
-name: release.yml
+name: Release
 
 on:
     workflow_dispatch:
@@ -60,72 +60,37 @@ jobs:
                         exit 1
                     fi
       
-    lint:
-      runs-on: ubuntu-latest
-      steps:
-        -   name: Checkout
-            uses: actions/checkout@v4
-        - uses: ./.github/actions/cargo-check
-        - uses: ./.github/actions/cargo-fmt
-        - uses: ./.github/actions/cargo-clippy
+    pre-commit:
+        runs-on: ubuntu-latest
+        steps:
+            -   name: Checkout repository
+                uses: actions/checkout@v4
 
+            -   name: Install Nix
+                uses: cachix/install-nix-action@v27
+
+            -   name: Enter devShell and run pre-commit
+                run: |
+                    nix develop -c pre-commit run --all-files
 
     build:
-      strategy:
-        matrix:
-            include:
-                - os: ubuntu-latest
-                  target: x86_64-unknown-linux-gnu
-                  bin: firmups-backend
-                - os: windows-latest
-                  target: x86_64-pc-windows-msvc
-                  bin: firmups-backend.exe
-                - os: macos-latest
-                  target: aarch64-apple-darwin
-                  bin: firmups-backend
-      runs-on: ${{ matrix.os }}
-
-      steps:
-        -   name: Checkout
-            uses: actions/checkout@v4
-
-        - uses: actions/cache@v4
-          with:
-            path: |
-              ~/.cargo/registry
-              ~/.cargo/git
-              target
-            key: cargo-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
-
-        - uses: ./.github/actions/cargo-build-release
-          with:
-            target: ${{ matrix.target }}
-
-        - uses: actions/upload-artifact@v4
-          with:
-            name: binary-${{ matrix.target }}
-            path: target/${{ matrix.target }}/release/${{ matrix.bin }}
-            retention-days: 1
+        needs: pre-commit
+        uses: ./.github/workflows/partial-build.yml
 
     publish-github-release:
         runs-on: ubuntu-latest
         if: ${{ github.event.inputs.releaseType != 'develop' }}
-        needs: [build, create-version-string ]
+        needs: [build, create-version-string, check-changelog ]
         permissions:
             contents: write
         steps:
             -   name: Checkout
                 uses: actions/checkout@v4
 
-            -   name: Download release artifact
+            -   name: Download all build artifacts
                 uses: actions/download-artifact@v4
                 with:
-                    name: release-v${{ needs.create-version-string.outputs.version_string }}
-
-            -   name: Download signature artifact
-                uses: actions/download-artifact@v4
-                with:
-                    name: release-v${{ needs.create-version-string.outputs.version_string }}-signature
+                    path: artifacts
 
             -   name: Create body for stable
                 if: ${{ github.event.inputs.releaseType == 'stable' }}
@@ -135,7 +100,7 @@ jobs:
 
             -   uses: ncipollo/release-action@v1
                 with:
-                    artifacts: "firmups-backend-v${{ needs.create-version-string.outputs.version_string }}.tar.gz, firmups-backend-v${{ needs.create-version-string.outputs.version_string }}-signature.txt"
+                    artifacts: "artifacts/**"
                     bodyFile: "body.md"
                     makeLatest: ${{ github.event.inputs.releaseType == 'stable' }}
                     tag: "v${{ needs.create-version-string.outputs.version_string }}"

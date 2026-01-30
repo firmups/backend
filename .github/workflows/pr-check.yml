@@ -1,0 +1,23 @@
+name: PR-Check
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+
+jobs:
+    pre-commit:
+        runs-on: ubuntu-latest
+        steps:
+            -   name: Checkout repository
+                uses: actions/checkout@v4
+
+            -   name: Install Nix
+                uses: cachix/install-nix-action@v27
+
+            -   name: Enter devShell and run pre-commit
+                run: |
+                    nix develop -c pre-commit run --all-files
+
+    build:
+        needs: pre-commit
+        uses: ./.github/workflows/partial-build.yml

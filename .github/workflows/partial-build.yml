@@ -1,0 +1,59 @@
+name: Build Component
+
+on:
+  workflow_call:
+
+jobs:
+  build:
+    name: Build (matrix)
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            bin: firmups-backend
+            build-docker: true
+
+          # - os: macos-latest
+          #   target: aarch64-apple-darwin
+          #   bin: firmups-backend
+          #   build-docker: false
+
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+        -   name: Checkout
+            uses: actions/checkout@v4
+        
+        -   uses: actions/cache@v4
+            with:
+                path: /tmp/nix-build
+                key: nix-tmp-${{ runner.os }}
+
+        -   name: Install Nix
+            uses: cachix/install-nix-action@v27
+
+        -   name: Build with Nix
+            shell: bash
+            run: |
+                set -euxo pipefail
+                nix build .#backend
+                mkdir -p dist
+                cp -v result/bin/${{ matrix.bin }} "dist/${{ matrix.bin }}-${{ matrix.target }}"
+
+        -   name: Build docker image
+            shell: bash
+            if: ${{ matrix.build-docker }}
+            run: |
+                set -euxo pipefail
+                nix build .#dockerImage
+                cp -v result "dist/${{ matrix.bin }}-x86_64-docker.tar.gz"
+
+        -   name: Upload artifact
+            uses: actions/upload-artifact@v4
+            with:
+                name: ${{ matrix.target }}
+                path: dist/*
+                retention-days: 1
