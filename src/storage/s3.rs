@@ -1,6 +1,7 @@
 use async_trait::async_trait;
 use aws_sdk_s3::config::{Builder as S3ConfigBuilder, Region};
 use aws_sdk_s3::{Client, error::SdkError, primitives::ByteStream};
+use log::debug;
 use std::pin::Pin;
 use tokio::io::AsyncRead;
 use tokio_util::io::ReaderStream;
@@ -17,6 +18,8 @@ impl S3Storage {
         access_key: &str,
         secret_key: &str,
     ) -> anyhow::Result<Self> {
+        debug!("Initializing S3 storage with bucket '{}'", bucket);
+
         // Base config from environment (reads AWS_* env vars if present)
         let mut loader = aws_config::defaults(aws_config::BehaviorVersion::latest())
             .region(Region::new("garage"));
@@ -34,6 +37,7 @@ impl S3Storage {
         if !endpoint.is_empty() {
             s3_builder = s3_builder.endpoint_url(endpoint);
         }
+        s3_builder = s3_builder.force_path_style(true);
 
         let s3_config = s3_builder.build();
         let client = Client::from_conf(s3_config);
@@ -48,6 +52,7 @@ impl S3Storage {
 #[async_trait]
 impl super::Storage for S3Storage {
     async fn save(&self, key: &str, bytes: &[u8]) -> anyhow::Result<()> {
+        debug!("Saving object '{}' to S3 bucket '{}'", key, self.bucket);
         // Convert bytes to ByteStream
         let body = ByteStream::from(bytes.to_vec());
 
@@ -65,6 +70,13 @@ impl super::Storage for S3Storage {
     }
 
     async fn load_range(&self, key: &str, offset: u64, length: u64) -> anyhow::Result<Vec<u8>> {
+        debug!(
+            "Loading range bytes {}-{} of object '{}' from S3 bucket '{}'",
+            offset,
+            offset + length - 1,
+            key,
+            self.bucket
+        );
         let range = format!("bytes={}-{}", offset, offset + length - 1);
         let out = self
             .client
@@ -91,6 +103,10 @@ impl super::Storage for S3Storage {
         &self,
         key: &str,
     ) -> anyhow::Result<ReaderStream<Pin<Box<dyn AsyncRead + Send>>>> {
+        debug!(
+            "Streaming object '{}' from S3 bucket '{}'",
+            key, self.bucket
+        );
         let out = self
             .client
             .get_object()
@@ -107,6 +123,7 @@ impl super::Storage for S3Storage {
     }
 
     async fn delete(&self, key: &str) -> anyhow::Result<()> {
+        debug!("Deleting object '{}' from S3 bucket '{}'", key, self.bucket);
         self.client
             .delete_object()
             .bucket(&self.bucket)
