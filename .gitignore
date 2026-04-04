@@ -28,7 +28,7 @@ db/pg
 !db/docker-compose.yaml
 
 # Data
-data/
+firmups/
 
 # Nix
 result

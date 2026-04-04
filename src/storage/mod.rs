@@ -1,6 +1,7 @@
 use crate::storage::local::LocalStorage;
 use crate::storage::s3::S3Storage;
 use async_trait::async_trait;
+use std::path::PathBuf;
 use std::pin::Pin;
 use tokio::io::AsyncRead;
 use tokio_util::io::ReaderStream;
@@ -11,7 +12,7 @@ mod s3;
 #[derive(Clone)]
 pub enum StorageConfig {
     Local {
-        path: String,
+        path: PathBuf,
     },
     S3 {
         endpoint: String,
