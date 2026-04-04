@@ -77,7 +77,7 @@ pub fn client_error(status_code: StatusCode, err: String) -> ApiError {
 
 pub fn internal_error<E>(err: E) -> ApiError
 where
-    E: std::error::Error,
+    E: ToString,
 {
     let error_id = Uuid::new_v4();
 

@@ -13,8 +13,6 @@ use diesel::result::DatabaseErrorKind;
 use diesel_async::RunQueryDsl;
 use log::warn;
 use sha2::{Digest, Sha256};
-use tokio::fs;
-use tokio_util::io::ReaderStream;
 use uuid::Uuid;
 
 #[axum::debug_handler]
@@ -127,19 +125,27 @@ pub async fn create_firmware(
     };
 
     let safe_name = format!("{}.bin", new_firmware.file_id);
-    let mut path = api_config.data_storage_location;
-    path.push("firmware");
-    fs::create_dir_all(&path)
+    // let mut path = api_config.data_storage_location;
+    // path.push("firmware");
+    // fs::create_dir_all(&path)
+    //     .await
+    //     .map_err(rest::error::internal_error)?;
+    // path.push(&safe_name);
+    // fs::write(&path, &file)
+    //     .await
+    //     .map_err(rest::error::internal_error)?;
+    let mut path = "firmware-".to_string();
+    path.push_str(safe_name.as_str());
+    api_config
+        .storage
+        .save(&path, &file)
         .await
-        .map_err(rest::error::internal_error)?;
-    path.push(&safe_name);
-    fs::write(&path, &file)
-        .await
-        .map_err(rest::error::internal_error)?;
+        .map_err(|e| rest::error::internal_error(format!("failed to save: {e}")))?;
     let mut conn = match api_config.shared_pool.get().await {
         Ok(c) => c,
         Err(e) => {
-            let _ = fs::remove_file(&path).await;
+            //let _ = fs::remove_file(&path).await;
+            let _ = api_config.storage.delete(&path).await;
             return Err(rest::error::internal_error(e));
         }
     };
@@ -153,7 +159,7 @@ pub async fn create_firmware(
         Ok(record) => Ok((StatusCode::CREATED, axum::Json(record))),
         Err(diesel::result::Error::DatabaseError(kind, info)) => {
             if kind == DatabaseErrorKind::UniqueViolation {
-                let _ = fs::remove_file(&path).await;
+                let _ = api_config.storage.delete(&path).await;
                 Err(rest::error::client_error(
                     StatusCode::CONFLICT,
                     format!(
@@ -162,13 +168,13 @@ pub async fn create_firmware(
                     ),
                 ))
             } else {
-                let _ = fs::remove_file(&path).await;
+                let _ = api_config.storage.delete(&path).await;
                 let error = diesel::result::Error::DatabaseError(kind, info);
                 Err(rest::error::internal_error(error))
             }
         }
         Err(err) => {
-            let _ = fs::remove_file(&path).await;
+            let _ = api_config.storage.delete(&path).await;
             Err(rest::error::internal_error(err))
         }
     }
@@ -284,7 +290,7 @@ pub async fn create_firmware(
 //                 let mut old_path: Option<PathBuf> = None;
 
 //                 if changedset.file_id.is_some() {
-//                     let old: Firmware = diesel::QueryDsl::for_update(
+//                     let old: Firmware = diesel::QueryDsl: ReaderStream::new(file);:for_update(
 //                         firmware
 //                             .select(Firmware::as_select())
 //                             .filter(id.eq(path_id)),
@@ -347,7 +353,7 @@ pub async fn create_firmware(
 //                 let _ = fs::remove_file(&new_path.unwrap()).await;
 //             }
 //             return Err(internal_error(e));
-//         }
+//         } ReaderStream::new(file);
 //     };
 // }
 
@@ -407,11 +413,14 @@ pub async fn delete_firmware(
 
     match deleted {
         Ok(row) => {
-            let mut path = api_config.data_storage_location;
+            // let mut path = api_config.data_storage_location;
             let safe_name = format!("{}.bin", row.file_id);
-            path.push("firmware");
-            path.push(&safe_name);
-            let file_removal = fs::remove_file(path).await;
+            // path.push("firmware");
+            // path.push(&safe_name);
+            // let file_removal = fs::remove_file(path).await;
+            let mut path = "firmware-".to_string();
+            path.push_str(safe_name.as_str());
+            let file_removal = api_config.storage.delete(&path).await;
             if file_removal.is_err() {
                 warn!(
                     "File {} of firmware {} could not be removed",
@@ -530,18 +539,22 @@ pub async fn get_firmware_file(
         }
     };
 
-    let mut path = api_config.data_storage_location;
+    //let mut path = api_config.data_storage_location;
     let safe_name = format!("{}.bin", fw.file_id);
-    path.push("firmware");
-    path.push(&safe_name);
-
-    // Open file
-    let file = fs::File::open(&path)
+    // path.push("firmware");
+    // path.push(&safe_name);
+    // // Open file
+    // let file = fs::File::open(&path)
+    //     .await
+    //     .map_err(rest::error::internal_error)?;
+    let stream = api_config
+        .storage
+        .stream(&format!("firmware-{}", safe_name))
         .await
         .map_err(rest::error::internal_error)?;
 
     // Stream the file to the client
-    let stream = ReaderStream::new(file);
+    //let stream = ReaderStream::new(file);
     let body = Body::from_stream(stream);
 
     // Prepare headers

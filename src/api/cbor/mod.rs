@@ -1,6 +1,5 @@
 use log::{debug, error, info};
 use std::net::SocketAddr;
-use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::net::UdpSocket;
 use tokio::select;
@@ -14,7 +13,7 @@ mod operation_handler;
 pub struct CborApiConfig {
     pub listen_address: SocketAddr,
     pub shared_pool: Arc<crate::DbPool>,
-    pub data_storage_location: PathBuf,
+    pub storage: Arc<Box<dyn crate::storage::Storage>>,
 }
 
 pub struct CborApi {

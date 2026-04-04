@@ -6,7 +6,6 @@ use diesel::SelectableHelper;
 use diesel_async::RunQueryDsl;
 use log::warn;
 use std::sync::Arc;
-use std::{future::Future, pin::Pin};
 use zeroize::Zeroize;
 
 pub enum CoseHandlerError {
@@ -20,66 +19,64 @@ struct DbKeyProvider {
     key_bytes: Option<Vec<u8>>,
 }
 
+#[async_trait::async_trait]
 impl cose::KeyProvider for DbKeyProvider {
-    fn key_for_device<'a>(
-        &'a mut self,
+    async fn key_for_device(
+        &mut self,
         device_id: u32,
         key_type: cose::KeyType,
-    ) -> Pin<Box<dyn Future<Output = Result<Vec<u8>, cose::KeyProviderError>> + Send + 'a>> {
+    ) -> Result<Vec<u8>, cose::KeyProviderError> {
         let pool = Arc::clone(&self.shared_pool);
-        Box::pin(async move {
-            use crate::db::schema::device_key::dsl as device_key_dsl;
-            use crate::db::schema::lightweight_key_details::dsl as details_dsl;
-            let mut conn = pool
-                .get_owned()
-                .await
-                .map_err(|_| cose::KeyProviderError::DbError)?;
+        use crate::db::schema::device_key::dsl as device_key_dsl;
+        use crate::db::schema::lightweight_key_details::dsl as details_dsl;
+        let mut conn = pool
+            .get_owned()
+            .await
+            .map_err(|_| cose::KeyProviderError::DbError)?;
 
-            let (active_key, details): (DeviceKey, LightweightKeyDetails) =
-                device_key_dsl::device_key
-                    .inner_join(details_dsl::lightweight_key_details)
-                    .filter(device_key_dsl::device.eq(device_id as i32))
-                    .filter(device_key_dsl::status.eq(KeyStatus::Active))
-                    .select((DeviceKey::as_select(), LightweightKeyDetails::as_select()))
-                    .first(&mut conn)
-                    .await
-                    .map_err(|e| match e {
-                        diesel::result::Error::NotFound => {
-                            warn!("Key not found for device {}", device_id);
-                            cose::KeyProviderError::KeyNotFound
-                        }
-                        _ => {
-                            warn!("Database error for device {}", device_id);
-                            cose::KeyProviderError::DbError
-                        }
-                    })?;
-            if active_key.key_type != crate::db::models::KeyType::Lightweight {
-                warn!("Key type mismatch for device {}", device_id);
-                return Err(cose::KeyProviderError::KeyMismatch);
-            }
-            match details.algorithm {
-                crate::db::models::CryptoAlgorithm::AesGcm128 => match key_type {
-                    cose::KeyType::AesGcm128 => {
-                        self.key_bytes = details.key.clone().into();
-                        Ok(details.key)
-                    }
-                    _ => {
-                        warn!("Key algorithm mismatch for device {}", device_id);
-                        Err(cose::KeyProviderError::KeyMismatch)
-                    }
-                },
-                crate::db::models::CryptoAlgorithm::AsconAead128 => match key_type {
-                    cose::KeyType::AsconAead128 => {
-                        self.key_bytes = details.key.clone().into();
-                        Ok(details.key)
-                    }
-                    _ => {
-                        warn!("Key algorithm mismatch for device {}", device_id);
-                        Err(cose::KeyProviderError::KeyMismatch)
-                    }
-                },
-            }
-        })
+        let (active_key, details): (DeviceKey, LightweightKeyDetails) = device_key_dsl::device_key
+            .inner_join(details_dsl::lightweight_key_details)
+            .filter(device_key_dsl::device.eq(device_id as i32))
+            .filter(device_key_dsl::status.eq(KeyStatus::Active))
+            .select((DeviceKey::as_select(), LightweightKeyDetails::as_select()))
+            .first(&mut conn)
+            .await
+            .map_err(|e| match e {
+                diesel::result::Error::NotFound => {
+                    warn!("Key not found for device {}", device_id);
+                    cose::KeyProviderError::KeyNotFound
+                }
+                _ => {
+                    warn!("Database error for device {}", device_id);
+                    cose::KeyProviderError::DbError
+                }
+            })?;
+        if active_key.key_type != crate::db::models::KeyType::Lightweight {
+            warn!("Key type mismatch for device {}", device_id);
+            return Err(cose::KeyProviderError::KeyMismatch);
+        }
+        match details.algorithm {
+            crate::db::models::CryptoAlgorithm::AesGcm128 => match key_type {
+                cose::KeyType::AesGcm128 => {
+                    self.key_bytes = details.key.clone().into();
+                    Ok(details.key)
+                }
+                _ => {
+                    warn!("Key algorithm mismatch for device {}", device_id);
+                    Err(cose::KeyProviderError::KeyMismatch)
+                }
+            },
+            crate::db::models::CryptoAlgorithm::AsconAead128 => match key_type {
+                cose::KeyType::AsconAead128 => {
+                    self.key_bytes = details.key.clone().into();
+                    Ok(details.key)
+                }
+                _ => {
+                    warn!("Key algorithm mismatch for device {}", device_id);
+                    Err(cose::KeyProviderError::KeyMismatch)
+                }
+            },
+        }
     }
 }
 
@@ -97,22 +94,21 @@ struct StaticKeyProvider {
     key_bytes: Vec<u8>,
 }
 
+#[async_trait::async_trait]
 impl cose::KeyProvider for StaticKeyProvider {
-    fn key_for_device<'a>(
-        &'a mut self,
+    async fn key_for_device(
+        &mut self,
         device_id: u32,
         key_type: cose::KeyType,
-    ) -> Pin<Box<dyn Future<Output = Result<Vec<u8>, cose::KeyProviderError>> + Send + 'a>> {
+    ) -> Result<Vec<u8>, cose::KeyProviderError> {
         let key_bytes = self.key_bytes.clone();
-        Box::pin(async move {
-            if self.device_id != device_id {
-                return Err(cose::KeyProviderError::KeyNotFound);
-            }
-            if self.key_type != key_type {
-                return Err(cose::KeyProviderError::KeyMismatch);
-            }
-            Ok(key_bytes)
-        })
+        if self.device_id != device_id {
+            return Err(cose::KeyProviderError::KeyNotFound);
+        }
+        if self.key_type != key_type {
+            return Err(cose::KeyProviderError::KeyMismatch);
+        }
+        Ok(key_bytes)
     }
 }
 

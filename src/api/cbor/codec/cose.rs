@@ -2,7 +2,6 @@ use crate::api::cbor::codec::crypto;
 use log::debug;
 use minicbor::Decoder;
 use minicbor::Encoder;
-use std::pin::Pin;
 
 pub enum KeyProviderError {
     KeyMismatch,
@@ -10,12 +9,13 @@ pub enum KeyProviderError {
     DbError,
 }
 
+#[async_trait::async_trait]
 pub trait KeyProvider: Send + Sync {
-    fn key_for_device<'a>(
-        &'a mut self,
+    async fn key_for_device(
+        &mut self,
         device_id: u32,
         key_type: KeyType,
-    ) -> Pin<Box<dyn Future<Output = Result<Vec<u8>, KeyProviderError>> + Send + 'a>>;
+    ) -> Result<Vec<u8>, KeyProviderError>;
 }
 
 pub enum CoseCodecError {
