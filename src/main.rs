@@ -20,6 +20,37 @@ type DbPool = bb8::Pool<AsyncPgConnection>;
 async fn main() {
     dotenv().ok();
 
+    // Set up logging
+    if std::env::var("FIRMUPS_LOG_PATH").is_err() {
+        tracing_subscriber::registry()
+            .with(EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")))
+            .with(fmt::layer().with_writer(std::io::stderr))
+            .init();
+        info!("FIRMUPS_LOG_PATH not set, only logging to stderr");
+    } else {
+        let log_path = PathBuf::from(std::env::var("FIRMUPS_LOG_PATH").expect("FIRMUPS_LOG_PATH environment variable is missing. Please set it before running the app."));
+        if !log_path.exists() {
+            fs::create_dir_all(&log_path).expect("Failed to create log directory");
+        }
+        let max_log_days: usize = std::env::var("FIRMUPS_LOG_MAX_DAYS")
+            .ok()
+            .and_then(|s| s.parse::<usize>().ok())
+            .unwrap_or(7);
+        let file_appender = RollingFileAppender::builder()
+            .rotation(Rotation::DAILY)
+            .filename_prefix("firmups")
+            .filename_suffix("log")
+            .max_log_files(max_log_days)
+            .build(log_path)
+            .expect("create rolling file");
+        tracing_subscriber::registry()
+            .with(EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")))
+            .with(fmt::layer().with_writer(std::io::stderr))
+            .with(fmt::layer().with_ansi(false).with_writer(file_appender))
+            .init();
+    }
+    info!("Logging initialized.");
+
     // DB Pool setup
     let db_url = std::env::var("FIRMUPS_DATABASE_URL").expect("FIRMUPS_DATABASE_URL environment variable is missing. Please set it before running the app.");
     let config = AsyncDieselConnectionManager::<diesel_async::AsyncPgConnection>::new(db_url);
@@ -42,9 +73,8 @@ async fn main() {
         };
     } else if storage_type_env.to_lowercase() == "local" {
         info!("Using local storage backend.");
-        storage_config = storage::StorageConfig::Local {
-            path: std::env::var("FIRMUPS_STORAGE_LOCAL_PATH").expect("FIRMUPS_STORAGE_LOCAL_PATH environment variable is missing. Please set it before running the app."),
-        };
+        let path = PathBuf::from(std::env::var("FIRMUPS_STORAGE_LOCAL_DATA_PATH").expect("FIRMUPS_STORAGE_LOCAL_DATA_PATH environment variable is missing. Please set it before running the app."));
+        storage_config = storage::StorageConfig::Local { path };
     } else {
         error!(
             "Invalid FIRMUPS_STORAGE_TYPE '{}'. Must be 's3' or 'local'.",
@@ -57,54 +87,6 @@ async fn main() {
         .await
         .expect("Failed to create storage backend")
         .into();
-
-    if let storage::StorageConfig::Local { path: src_path } = &storage_config.clone() {
-        let data_path = PathBuf::from(src_path);
-        // Ensure data directory exists
-        if let Err(e) = fs::create_dir_all(&data_path) {
-            eprintln!("Failed to create data directory {:?}: {}", data_path, e);
-            std::process::exit(1);
-        }
-
-        let log_path_env = std::env::var("FIRMUPS_LOG_PATH");
-        let log_path: PathBuf = match log_path_env {
-            Ok(path) => PathBuf::from(path),
-            Err(_) => {
-                println!("FIRMUPS_LOG_PATH not set using default: ${{FIRMUPS_DATA_PATH}}/logs");
-                data_path.join("logs")
-            }
-        };
-        // Ensure log directory exists
-        if let Err(e) = fs::create_dir_all(&log_path) {
-            eprintln!("Failed to create log directory {:?}: {}", log_path, e);
-            std::process::exit(1);
-        }
-
-        let max_log_days: usize = std::env::var("FIRMUPS_MAX_LOG_DAYS")
-            .ok()
-            .and_then(|s| s.parse::<usize>().ok())
-            .unwrap_or(7);
-        let file_appender = RollingFileAppender::builder()
-            .rotation(Rotation::DAILY)
-            .filename_prefix("firmups")
-            .filename_suffix("log")
-            .max_log_files(max_log_days)
-            .build(log_path)
-            .expect("create rolling file");
-
-        tracing_subscriber::registry()
-            .with(EnvFilter::from_default_env())
-            .with(fmt::layer().with_writer(std::io::stderr)) // console
-            .with(fmt::layer().with_ansi(false).with_writer(file_appender)) // file
-            .init();
-
-        info!("Logging initialized.");
-    } else {
-        error!(
-            "Logging to file is only supported for local storage. Please set FIRMUPS_STORAGE_TYPE to 'local' if you want file logging."
-        );
-        std::process::exit(1);
-    }
 
     // CBOR API
     let cbor_addr: SocketAddr = "0.0.0.0:53585".parse().unwrap();
