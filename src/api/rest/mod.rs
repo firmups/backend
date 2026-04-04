@@ -1,7 +1,6 @@
 use axum::http::StatusCode;
 use axum::response::{Html, IntoResponse};
 use log::{info, warn};
-use std::path::PathBuf;
 use std::{net::SocketAddr, sync::Arc};
 use tokio::net::TcpListener;
 use tokio::signal;
@@ -19,7 +18,7 @@ pub struct RestApiConfig {
     pub listen_address: SocketAddr,
     pub shared_pool: Arc<crate::DbPool>,
     pub max_firmware_size: usize,
-    pub data_storage_location: PathBuf,
+    pub storage: Arc<Box<dyn crate::storage::Storage>>,
     pub api_key: String,
 }
 

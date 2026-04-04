@@ -7,8 +7,6 @@ use diesel::query_dsl::methods::{FilterDsl, FindDsl, SelectDsl};
 use diesel::result::DatabaseErrorKind;
 use diesel_async::RunQueryDsl;
 use log::{error, info, warn};
-use tokio::io::{AsyncReadExt, AsyncSeekExt};
-use tokio::{fs, io};
 
 pub struct OperationHandler {
     config: cbor::CborApiConfig,
@@ -315,43 +313,26 @@ impl OperationHandler {
                     }
                 };
 
-                let safe_name = format!("{}.bin", result.file_id);
-                let mut path = self.config.data_storage_location.clone();
-                path.push("firmware");
-                path.push(safe_name);
-
-                let mut file = match fs::File::open(path).await {
-                    Ok(f) => f,
-                    Err(e) => {
-                        error!("Failed to open firmware file: {}", e);
-                        return self
-                            .handle_error_operation(operation::OperationError::InternalError);
-                    }
-                };
-                match file.seek(io::SeekFrom::Start(req.offset as u64)).await {
-                    Ok(_) => {}
-                    Err(e) => {
-                        error!("Failed to seek firmware file: {}", e);
-                        return self
-                            .handle_error_operation(operation::OperationError::InternalError);
-                    }
-                }
-
                 if (req.length as usize) > 1024 * 1024 {
                     error!("Requested length too large: {}", req.length);
                     return self
                         .handle_error_operation(operation::OperationError::InvalidOperation);
                 }
-                let mut buf = vec![0u8; req.length as usize];
-                let read = match file.read(&mut buf).await {
-                    Ok(r) => r,
+
+                let key = format!("firmware-{}.bin", result.file_id);
+                let storage: &dyn crate::storage::Storage = &**self.config.storage;
+                let buf = match storage
+                    .load_range(&key, req.offset as u64, req.length as u64)
+                    .await
+                {
+                    Ok(data) => data,
                     Err(e) => {
-                        error!("Failed to read firmware file: {}", e);
+                        error!("Failed to load firmware file: {}", e);
                         return self
                             .handle_error_operation(operation::OperationError::InternalError);
                     }
                 };
-                buf.truncate(read);
+                let read = buf.len();
 
                 if (read as u32) < req.length {
                     info!(
