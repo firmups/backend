@@ -9,6 +9,7 @@ mod device;
 mod device_key;
 mod device_type;
 mod device_type_firmware;
+mod device_type_parameter;
 mod error;
 mod firmware;
 mod serde_helpers;
@@ -87,6 +88,26 @@ impl RestApi {
             .route(
                 "/device_type/{id}",
                 axum::routing::delete(device_type::delete_device_type),
+            )
+            .route(
+                "/device_type/{id}/parameter",
+                axum::routing::get(device_type_parameter::list_device_type_parameters),
+            )
+            .route(
+                "/device_type/{id}/parameter",
+                axum::routing::post(device_type_parameter::create_device_type_parameter),
+            )
+            .route(
+                "/device_type/{id}/parameter/{id}",
+                axum::routing::get(device_type_parameter::get_device_type_parameter),
+            )
+            .route(
+                "/device_type/{id}/parameter/{id}",
+                axum::routing::patch(device_type_parameter::update_device_type_parameter),
+            )
+            .route(
+                "/device_type/{id}/parameter/{id}",
+                axum::routing::delete(device_type_parameter::delete_device_type_parameter),
             )
             .route("/device", axum::routing::get(device::list_devices))
             .route("/device", axum::routing::post(device::create_device))

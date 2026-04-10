@@ -16,6 +16,8 @@ servers:
 tags:
   - name: DeviceType
     description: DeviceType endpoints
+  - name: DeviceTypeParameter
+    description: Parameters defined on a device type
   - name: Device
     description: All about the devices in the field
   - name: DeviceKey
@@ -132,7 +134,7 @@ paths:
       security:
         - api_key: []
       summary: Update an existing device type
-      operationId: UpdateDeviceType
+      operationId: updateDeviceType
       parameters:
         - name: id
           in: path
@@ -216,6 +218,229 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/InternalError"
+  /device_type/{id}/parameter:
+    get:
+      tags:
+        - DeviceTypeParameter
+      security:
+        - api_key: []
+      summary: List all parameters of the device type
+      operationId: listDeviceTypeParameters
+      parameters:
+        - name: id
+          in: path
+          description: ID of the DeviceType
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DeviceTypeParameter"
+        "500":
+          description: Internal error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InternalError"
+    post:
+      tags:
+        - DeviceTypeParameter
+      security:
+        - api_key: []
+      summary: Create a new parameter for the device type
+      operationId: createDeviceTypeParameter
+      parameters:
+        - name: id
+          in: path
+          description: ID of the DeviceType
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NewDeviceTypeParameter"
+      responses:
+        "201":
+          description: Parameter created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeviceTypeParameter"
+        "404":
+          description: Device type not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: "A parameter with the same key already exists on this device type, or no default_value was provided while devices of this type already exist (every existing device would be missing a value for the new parameter)"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "422":
+          description: Input data could not be parsed
+          content:
+            application/json:
+              schema:
+                type: string
+                description: Parse error description
+        "500":
+          description: Internal error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InternalError"
+  /device_type/{id}/parameter/{param_id}:
+    get:
+      tags:
+        - DeviceTypeParameter
+      security:
+        - api_key: []
+      summary: Get a parameter of the device type
+      operationId: getDeviceTypeParameter
+      parameters:
+        - name: id
+          in: path
+          description: ID of the DeviceType
+          required: true
+          schema:
+            type: integer
+        - name: param_id
+          in: path
+          description: ID of the DeviceTypeParameter
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeviceTypeParameter"
+        "404":
+          description: Parameter not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Internal error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InternalError"
+    patch:
+      tags:
+        - DeviceTypeParameter
+      security:
+        - api_key: []
+      summary: Update a parameter of the device type
+      operationId: updateDeviceTypeParameter
+      parameters:
+        - name: id
+          in: path
+          description: ID of the DeviceType
+          required: true
+          schema:
+            type: integer
+        - name: param_id
+          in: path
+          description: ID of the DeviceTypeParameter
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateDeviceTypeParameter"
+      responses:
+        "200":
+          description: Parameter updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeviceTypeParameter"
+        "404":
+          description: Parameter not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: Parameter key already exists for this device type
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "422":
+          description: Input data could not be parsed
+          content:
+            application/json:
+              schema:
+                type: string
+                description: Parse error description
+        "500":
+          description: Internal error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InternalError"
+    delete:
+      tags:
+        - DeviceTypeParameter
+      security:
+        - api_key: []
+      summary: Delete a parameter of the device type
+      operationId: deleteDeviceTypeParameter
+      parameters:
+        - name: id
+          in: path
+          description: ID of the DeviceType
+          required: true
+          schema:
+            type: integer
+        - name: param_id
+          in: path
+          description: ID of the DeviceTypeParameter
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeviceTypeParameter"
+        "404":
+          description: Parameter not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: Cannot delete parameter because devices of this type already exist
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Internal error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InternalError"
   /device:
     get:
       tags:
@@ -245,7 +470,7 @@ paths:
       security:
         - api_key: []
       summary: Create a new device
-      operationId: createDevic
+      operationId: createDevice
       requestBody:
         content:
           application/json:
@@ -418,7 +643,7 @@ paths:
       parameters:
         - name: device_id
           in: path
-          description: ID of the Devicefor which the keys shall be fetched
+          description: ID of the Device for which the keys shall be fetched
           required: true
           schema:
             type: integer
@@ -464,7 +689,7 @@ paths:
               $ref: "#/components/schemas/NewDeviceKey"
       responses:
         "201":
-          description: Device type created
+          description: Device key created
           content:
             application/json:
               schema:
@@ -521,9 +746,9 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/DeviceType"
+                $ref: "#/components/schemas/DeviceKey"
         "404":
-          description: Device type not found
+          description: Device key not found
           content:
             application/json:
               schema:
@@ -560,9 +785,9 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/DeviceType"
+                $ref: "#/components/schemas/DeviceKey"
         "404":
-          description: Device type not found
+          description: Device key not found
           content:
             application/json:
               schema:
@@ -972,7 +1197,7 @@ components:
         - name
     DeviceStatus:
       type: string
-      enum: ["ACTIVE", "INACTIVE", "MAINTENANCE"]
+      enum: ["active", "inactive", "maintenance"]
     NewDevice:
       type: object
       properties:
@@ -983,6 +1208,7 @@ components:
           type: integer
         firmware:
           type: integer
+          nullable: true
         desired_firmware:
           type: integer
         status:
@@ -990,7 +1216,6 @@ components:
       required:
         - name
         - type_
-        - firmware
         - desired_firmware
         - status
     UpdateDevice:
@@ -998,9 +1223,6 @@ components:
       properties:
         name:
           type: string
-        type_:
-          description: Device type id
-          type: integer
         firmware:
           type: integer
         desired_firmware:
@@ -1019,6 +1241,7 @@ components:
           type: integer
         firmware:
           type: integer
+          nullable: true
         desired_firmware:
           type: integer
         status:
@@ -1027,15 +1250,14 @@ components:
         - id
         - name
         - type_
-        - firmware
         - desired_firmware
         - status
     KeyType:
       type: string
-      enum: ["LIGHTWEIGHT"]
+      enum: ["lightweight"]
     LightweightKeyAlgorithm:
       type: string
-      enum: ["AES_GCM128", "ASCON_AEAD128"]
+      enum: ["aes_gcm128", "ascon_aead128"]
     LightweightKeyDetails:
       type: object
       properties:
@@ -1129,6 +1351,54 @@ components:
         firmware:
           description: Id of the firmware to link
           type: integer
+    ParameterType:
+      type: string
+      enum: ["string", "integer", "boolean", "float", "binary"]
+    NewDeviceTypeParameter:
+      type: object
+      properties:
+        key:
+          type: string
+        type:
+          $ref: "#/components/schemas/ParameterType"
+        default_value:
+          description: "Default value encoded according to the parameter type: string for String, number for Integer/Float, boolean for Boolean, base64 string for Binary"
+          oneOf:
+            - type: string
+            - type: number
+            - type: boolean
+      required:
+        - key
+        - type
+    DeviceTypeParameter:
+      type: object
+      properties:
+        id:
+          type: integer
+        device_type:
+          type: integer
+        key:
+          type: string
+        type:
+          $ref: "#/components/schemas/ParameterType"
+        default_value:
+          description: "Default value encoded according to the parameter type: string for String, number for Integer/Float, boolean for Boolean, base64 string for Binary"
+          oneOf:
+            - type: string
+            - type: number
+            - type: boolean
+      required:
+        - id
+        - device_type
+        - key
+        - type
+    UpdateDeviceTypeParameter:
+      type: object
+      properties:
+        key:
+          type: string
+      required:
+        - key
     InternalError:
       description: Masked internal error. The id can be matched with the backend logs.
       type: object

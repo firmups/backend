@@ -7,7 +7,7 @@ use diesel::ExpressionMethods;
 use diesel::SelectableHelper;
 use diesel::query_dsl::methods::{FilterDsl, FindDsl, SelectDsl};
 use diesel::result::DatabaseErrorKind;
-use diesel_async::RunQueryDsl;
+use diesel_async::{AsyncConnection, RunQueryDsl};
 
 #[axum::debug_handler]
 pub async fn list_devices(
@@ -66,62 +66,73 @@ pub async fn create_device(
         status: payload.status,
     };
 
-    // Perform the insert and return the created row
-    let result: Result<(StatusCode, Json<Device>), rest::error::ApiError> =
-        match diesel::insert_into(device_dsl::device)
-            .values(&new_row)
-            .returning(Device::as_returning())
-            .get_result(&mut conn)
-            .await
-        {
-            Ok(device) => Ok((StatusCode::CREATED, Json(device))),
-            Err(diesel::result::Error::DatabaseError(
-                DatabaseErrorKind::ForeignKeyViolation,
-                info,
-            )) => {
-                // Optional: check which constraint failed for more specific messages.
-                match info.constraint_name() {
-                    Some("fk_device_type") => Err(rest::error::client_error(
-                        StatusCode::BAD_REQUEST,
-                        "unknown device type".to_string(),
-                    )),
-                    Some("fk_firmware") => Err(rest::error::client_error(
-                        StatusCode::BAD_REQUEST,
-                        "unknown firmware".to_string(),
-                    )),
-                    Some("fk_desired_firmware") => Err(rest::error::client_error(
-                        StatusCode::BAD_REQUEST,
-                        "unknown desired firmware".to_string(),
-                    )),
-                    Some("fk_device_type_current") => Err(rest::error::client_error(
-                        StatusCode::BAD_REQUEST,
-                        "device type has no link to firmware".to_string(),
-                    )),
-                    Some("fk_device_type_desired") => Err(rest::error::client_error(
-                        StatusCode::BAD_REQUEST,
-                        "device type has no link to desired firmware".to_string(),
-                    )),
-                    _ => {
-                        let error = diesel::result::Error::DatabaseError(
-                            DatabaseErrorKind::ForeignKeyViolation,
-                            info,
-                        );
-                        Err(rest::error::internal_error(error))
-                    }
-                }
+    let device_type_id = payload.type_;
+
+    let tx_result: Result<Device, rest::error::TransactionError> = conn
+        .transaction::<_, rest::error::TransactionError, _>(move |mut conn| {
+            Box::pin(async move {
+                // Lock device_type to prevent race conditions with parameter creation
+                // Namespace 2 = device_type locks
+                diesel::dsl::sql_query("SELECT pg_advisory_xact_lock(2, $1)")
+                    .bind::<diesel::sql_types::Integer, _>(device_type_id)
+                    .execute(&mut conn)
+                    .await?;
+
+                let device: Device = diesel::insert_into(device_dsl::device)
+                    .values(&new_row)
+                    .returning(Device::as_returning())
+                    .get_result(&mut conn)
+                    .await?;
+
+                Ok(device)
+            })
+        })
+        .await;
+
+    use diesel::result::Error as DieselError;
+
+    match tx_result {
+        Ok(device) => Ok((StatusCode::CREATED, Json(device))),
+        Err(rest::error::TransactionError::Db(DieselError::DatabaseError(
+            DatabaseErrorKind::ForeignKeyViolation,
+            info,
+        ))) => match info.constraint_name() {
+            Some("fk_device_type") => Err(rest::error::client_error(
+                StatusCode::BAD_REQUEST,
+                "unknown device type".to_string(),
+            )),
+            Some("fk_firmware") => Err(rest::error::client_error(
+                StatusCode::BAD_REQUEST,
+                "unknown firmware".to_string(),
+            )),
+            Some("fk_desired_firmware") => Err(rest::error::client_error(
+                StatusCode::BAD_REQUEST,
+                "unknown desired firmware".to_string(),
+            )),
+            Some("fk_device_type_current") => Err(rest::error::client_error(
+                StatusCode::BAD_REQUEST,
+                "device type has no link to firmware".to_string(),
+            )),
+            Some("fk_device_type_desired") => Err(rest::error::client_error(
+                StatusCode::BAD_REQUEST,
+                "device type has no link to desired firmware".to_string(),
+            )),
+            _ => {
+                let error =
+                    DieselError::DatabaseError(DatabaseErrorKind::ForeignKeyViolation, info);
+                Err(rest::error::internal_error(error))
             }
-            // If you also have uniqueness constraints etc., you can match them too:
-            Err(diesel::result::Error::DatabaseError(DatabaseErrorKind::UniqueViolation, info)) => {
-                // e.g., duplicate device name
-                let _detail = info.message(); // or .details()
-                Err(rest::error::client_error(
-                    StatusCode::CONFLICT,
-                    "Device already exists".to_string(),
-                ))
-            }
-            Err(e) => Err(rest::error::internal_error(e)),
-        };
-    result
+        },
+        Err(rest::error::TransactionError::Db(DieselError::DatabaseError(
+            DatabaseErrorKind::UniqueViolation,
+            _,
+        ))) => Err(rest::error::client_error(
+            StatusCode::CONFLICT,
+            "Device already exists".to_string(),
+        )),
+        Err(rest::error::TransactionError::Db(e)) => Err(rest::error::internal_error(e)),
+        Err(rest::error::TransactionError::Api(api)) => Err(api),
+    }
 }
 
 #[axum::debug_handler]

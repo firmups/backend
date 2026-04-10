@@ -6,54 +6,47 @@ use diesel_derive_enum::DbEnum;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, DbEnum, serde::Serialize, serde::Deserialize)]
 #[ExistingTypePath = "crate::db::schema::sql_types::CryptoAlgorithm"]
 pub enum CryptoAlgorithm {
-    /// Maps to the Postgres enum label 'AES-GCM'
-    #[db_rename = "AES-GCM128"]
-    #[serde(rename = "AES_GCM128")]
+    #[db_rename = "aes_gcm128"]
+    #[serde(rename = "aes_gcm128")]
     AesGcm128,
-
-    /// Maps to the Postgres enum label 'ASCON-AEAD128'
-    #[db_rename = "ASCON-AEAD128"]
-    #[serde(rename = "ASCON_AEAD128")]
+    #[db_rename = "ascon_aead128"]
+    #[serde(rename = "ascon_aead128")]
     AsconAead128,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, DbEnum, serde::Serialize, serde::Deserialize)]
 #[ExistingTypePath = "crate::db::schema::sql_types::DeviceStatus"]
 #[DbValueStyle = "snake_case"]
+#[serde(rename_all = "snake_case")]
 pub enum DeviceStatus {
-    #[db_rename = "ACTIVE"]
     Active = 0,
-    #[db_rename = "INACTIVE"]
     Inactive = 1,
-    #[db_rename = "MAINTENANCE"]
     Maintenance = 2,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, DbEnum, serde::Serialize, serde::Deserialize)]
 #[ExistingTypePath = "crate::db::schema::sql_types::KeyStatus"]
 #[DbValueStyle = "snake_case"]
+#[serde(rename_all = "snake_case")]
 pub enum KeyStatus {
-    #[db_rename = "ACTIVE"]
     Active,
-    #[db_rename = "NEXT"]
     Next,
-    #[db_rename = "EXPIRED"]
     Expired,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, DbEnum)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, DbEnum, serde::Serialize, serde::Deserialize)]
 #[ExistingTypePath = "crate::db::schema::sql_types::KeyType"]
 #[DbValueStyle = "snake_case"]
+#[serde(rename_all = "snake_case")]
 pub enum KeyType {
-    #[db_rename = "LIGHTWEIGHT"]
     Lightweight,
-    #[db_rename = "TLS"]
     Tls,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, DbEnum)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, DbEnum, serde::Serialize, serde::Deserialize)]
 #[ExistingTypePath = "crate::db::schema::sql_types::ParameterType"]
 #[DbValueStyle = "snake_case"]
+#[serde(rename_all = "snake_case")]
 pub enum ParameterType {
     String,
     Integer,
@@ -101,7 +94,6 @@ pub struct NewDevice {
 #[diesel(table_name = crate::db::schema::device)]
 pub struct UpdateDevice {
     pub name: Option<String>,
-    pub type_: Option<i32>,
     pub firmware: Option<i32>,
     pub desired_firmware: Option<i32>,
     pub status: Option<DeviceStatus>,
@@ -210,10 +202,19 @@ pub struct DeviceTypeParameter {
 
 #[derive(Debug, Clone, Insertable)]
 #[diesel(table_name = crate::db::schema::device_type_parameter)]
+#[diesel(belongs_to(DeviceType, foreign_key = device_type))]
 pub struct NewDeviceTypeParameter {
     pub device_type: i32,
     pub key: String,
     pub type_: ParameterType,
+    pub default_value: Option<Vec<u8>>,
+}
+
+// device_type_parameter
+#[derive(Debug, Clone, AsChangeset, serde::Serialize, serde::Deserialize)]
+#[diesel(table_name = crate::db::schema::device_type_parameter)]
+pub struct UpdateDeviceTypeParameter {
+    pub key: String,
 }
 
 // firmware

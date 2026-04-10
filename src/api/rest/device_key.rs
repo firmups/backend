@@ -115,10 +115,11 @@ pub async fn create_device_key(
                 let mut key_status: KeyStatus = KeyStatus::Next;
 
                 // Lock device to prevent multiple keys being created simultaneously
-                diesel::dsl::sql_query("SELECT pg_advisory_xact_lock($1)")
-                            .bind::<diesel::sql_types::BigInt, _>(device_id as i64)
-                            .execute(&mut conn)
-                            .await?;
+                // Namespace 1 = device locks
+                diesel::dsl::sql_query("SELECT pg_advisory_xact_lock(1, $1)")
+                    .bind::<diesel::sql_types::Integer, _>(device_id)
+                    .execute(&mut conn)
+                    .await?;
 
                 match payload.kind.clone() {
                     NewDeviceKeyKind::Lightweight { details: det } => {
