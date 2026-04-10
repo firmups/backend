@@ -82,6 +82,7 @@
               "clippy"
               "rustfmt"
               "rust-src"
+              "rust-analyzer"
             ];
           };
           preCommit = self.checks.${system}.pre-commit-check;
@@ -91,12 +92,11 @@
             name = "firmups-backend";
             buildInputs = with pkgs; [
               rustToolchain
-              rust-analyzer
               lldb_20
               diesel-cli
               libpq
               bashInteractive
-              nixfmt-rfc-style
+              nixfmt
             ];
             packages = [ preCommit.enabledPackages ];
             shellHook = ''

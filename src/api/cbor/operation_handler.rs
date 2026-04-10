@@ -165,7 +165,6 @@ impl OperationHandler {
                     desired_firmware: None,
                     status: Some(ds),
                     name: None,
-                    type_: None,
                 };
 
                 // Perform the insert and return the created row

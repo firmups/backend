@@ -29,6 +29,7 @@ db/pg
 
 # Data
 firmups/
+data/
 
 # Nix
 result

@@ -4,7 +4,7 @@ CREATE TABLE device_type (
     name VARCHAR(100) NOT NULL
 );
 -- Device Type Parameters
-CREATE TYPE parameter_type AS ENUM ('STRING', 'INTEGER', 'BOOLEAN', 'FLOAT', 'BINARY');
+CREATE TYPE parameter_type AS ENUM ('string', 'integer', 'boolean', 'float', 'binary');
 
 CREATE TABLE device_type_parameter (
     id SERIAL PRIMARY KEY,
@@ -12,7 +12,8 @@ CREATE TABLE device_type_parameter (
     key VARCHAR(100) NOT NULL,
     type parameter_type NOT NULL,
     default_value BYTEA,
-    FOREIGN KEY (device_type) REFERENCES device_type(id) ON DELETE RESTRICT
+    FOREIGN KEY (device_type) REFERENCES device_type(id) ON DELETE RESTRICT,
+    CONSTRAINT device_type_parameter_unique_key UNIQUE (device_type, key)
 );
 
 -- Firmware
@@ -37,7 +38,7 @@ CREATE TABLE device_type_firmware (
 );
 
 -- Devices
-CREATE TYPE device_status AS ENUM ('ACTIVE', 'INACTIVE', 'MAINTENANCE');
+CREATE TYPE device_status AS ENUM ('active', 'inactive', 'maintenance');
 
 CREATE TABLE device (
     id SERIAL PRIMARY KEY,
@@ -92,8 +93,8 @@ CREATE TABLE device_parameter (
 );
 
 -- Device Keys
-CREATE TYPE key_type AS ENUM ('LIGHTWEIGHT', 'TLS');
-CREATE TYPE key_status AS ENUM ('ACTIVE', 'NEXT', 'EXPIRED');
+CREATE TYPE key_type AS ENUM ('lightweight', 'tls');
+CREATE TYPE key_status AS ENUM ('active', 'next', 'expired');
 
 CREATE TABLE device_key (
     id SERIAL PRIMARY KEY,
@@ -104,7 +105,7 @@ CREATE TABLE device_key (
 );
 
 -- Lightweight Key Details
-CREATE TYPE crypto_algorithm AS ENUM ('AES-GCM128', 'ASCON-AEAD128');
+CREATE TYPE crypto_algorithm AS ENUM ('aes_gcm128', 'ascon_aead128');
 
 CREATE TABLE lightweight_key_details (
     id SERIAL PRIMARY KEY,
