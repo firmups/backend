@@ -632,6 +632,185 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/InternalError"
+  /device/{id}/parameter:
+    get:
+      tags:
+        - Device
+      security:
+        - api_key: []
+      summary: List all effective parameter values for the device
+      operationId: listDeviceParameters
+      parameters:
+        - name: id
+          in: path
+          description: ID of the Device
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DeviceParameter"
+        "404":
+          description: Device not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Internal error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InternalError"
+  /device/{id}/parameter/{param_id}:
+    get:
+      tags:
+        - Device
+      security:
+        - api_key: []
+      summary: Get effective value of a single device parameter
+      operationId: getDeviceParameter
+      parameters:
+        - name: id
+          in: path
+          description: ID of the Device
+          required: true
+          schema:
+            type: integer
+        - name: param_id
+          in: path
+          description: ID of the DeviceTypeParameter
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeviceParameter"
+        "404":
+          description: Device or parameter not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Internal error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InternalError"
+    put:
+      tags:
+        - Device
+      security:
+        - api_key: []
+      summary: Set a device parameter value. If the value equals the type default it is removed as an override.
+      operationId: setDeviceParameter
+      parameters:
+        - name: id
+          in: path
+          description: ID of the Device
+          required: true
+          schema:
+            type: integer
+        - name: param_id
+          in: path
+          description: ID of the DeviceTypeParameter
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SetDeviceParameter"
+      responses:
+        "200":
+          description: Parameter value set
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeviceParameter"
+        "400":
+          description: Value type does not match the parameter type
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Device or parameter not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "422":
+          description: Input data could not be parsed
+          content:
+            application/json:
+              schema:
+                type: string
+                description: Parse error description
+        "500":
+          description: Internal error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InternalError"
+    delete:
+      tags:
+        - Device
+      security:
+        - api_key: []
+      summary: Reset a device parameter to its type default
+      operationId: resetDeviceParameter
+      parameters:
+        - name: id
+          in: path
+          description: ID of the Device
+          required: true
+          schema:
+            type: integer
+        - name: param_id
+          in: path
+          description: ID of the DeviceTypeParameter
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Parameter reset to default
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeviceParameter"
+        "404":
+          description: Device or parameter not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: Parameter has no default value and cannot be reset
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Internal error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InternalError"
   /device/{device_id}/key:
     get:
       tags:
@@ -1392,6 +1571,42 @@ components:
         - device_type
         - key
         - type
+    DeviceParameter:
+      type: object
+      properties:
+        device_type_parameter:
+          type: integer
+          description: ID of the DeviceTypeParameter this value belongs to
+        key:
+          type: string
+        type:
+          $ref: "#/components/schemas/ParameterType"
+        value:
+          description: "Effective value (override if set, otherwise the type default)"
+          oneOf:
+            - type: string
+            - type: number
+            - type: boolean
+        is_override:
+          type: boolean
+          description: true if this is a device-specific override, false if using the type default
+      required:
+        - device_type_parameter
+        - key
+        - type
+        - value
+        - is_override
+    SetDeviceParameter:
+      type: object
+      properties:
+        value:
+          description: "New value encoded according to the parameter type"
+          oneOf:
+            - type: string
+            - type: number
+            - type: boolean
+      required:
+        - value
     UpdateDeviceTypeParameter:
       type: object
       properties:

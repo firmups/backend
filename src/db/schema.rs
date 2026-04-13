@@ -52,16 +52,10 @@ diesel::table! {
 }
 
 diesel::table! {
-    use diesel::sql_types::*;
-    use super::sql_types::ParameterType;
-
     device_parameter (id) {
         id -> Int4,
         device -> Int4,
-        #[max_length = 100]
-        key -> Varchar,
-        #[sql_name = "type"]
-        type_ -> ParameterType,
+        device_type_parameter -> Int4,
         value -> Nullable<Bytea>,
     }
 }
@@ -136,6 +130,7 @@ diesel::table! {
 diesel::joinable!(device -> device_type (type_));
 diesel::joinable!(device_key -> device (device));
 diesel::joinable!(device_parameter -> device (device));
+diesel::joinable!(device_parameter -> device_type_parameter (device_type_parameter));
 diesel::joinable!(device_type_firmware -> device_type (device_type));
 diesel::joinable!(device_type_firmware -> firmware (firmware));
 diesel::joinable!(device_type_parameter -> device_type (device_type));

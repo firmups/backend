@@ -34,3 +34,6 @@ data/
 # Nix
 result
 .pre-commit-config.yaml
+
+# Bruno
+bruno/

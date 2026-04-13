@@ -1,4 +1,5 @@
 use crate::api::rest;
+use crate::api::rest::serde_helpers::{json_value_to_parameter, parameter_to_json_value};
 use crate::db::models::{
     DeviceTypeParameter, NewDeviceTypeParameter, ParameterType, UpdateDeviceTypeParameter,
 };
@@ -7,7 +8,6 @@ use crate::db::schema::device_type_parameter::dsl as dtp_dsl;
 use axum::Json;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
-use base64::{Engine as _, engine::general_purpose::STANDARD};
 use diesel::ExpressionMethods;
 use diesel::QueryDsl;
 use diesel::SelectableHelper;
@@ -15,74 +15,6 @@ use diesel::result::DatabaseErrorKind;
 use diesel_async::{AsyncConnection, RunQueryDsl};
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
-
-// ---------------------------------------------------------------------------
-// Value encoding helpers
-// ---------------------------------------------------------------------------
-
-fn bytes_to_json_value(type_: ParameterType, bytes: Vec<u8>) -> Result<JsonValue, String> {
-    match type_ {
-        ParameterType::String => String::from_utf8(bytes)
-            .map(JsonValue::String)
-            .map_err(|e| format!("stored string value is not valid UTF-8: {e}")),
-        ParameterType::Integer => {
-            let arr: [u8; 8] = bytes
-                .try_into()
-                .map_err(|_| "stored integer value must be exactly 8 bytes".to_string())?;
-            let n = i64::from_be_bytes(arr);
-            Ok(JsonValue::Number(n.into()))
-        }
-        ParameterType::Float => {
-            let arr: [u8; 8] = bytes
-                .try_into()
-                .map_err(|_| "stored float value must be exactly 8 bytes".to_string())?;
-            let f = f64::from_be_bytes(arr);
-            serde_json::Number::from_f64(f)
-                .map(JsonValue::Number)
-                .ok_or_else(|| "stored float value is non-finite".to_string())
-        }
-        ParameterType::Boolean => {
-            if bytes.is_empty() {
-                return Err("stored boolean value must be exactly 1 byte".to_string());
-            }
-            Ok(JsonValue::Bool(bytes[0] != 0))
-        }
-        ParameterType::Binary => Ok(JsonValue::String(STANDARD.encode(&bytes))),
-    }
-}
-
-fn json_value_to_bytes(type_: ParameterType, value: JsonValue) -> Result<Vec<u8>, String> {
-    match type_ {
-        ParameterType::String => match value {
-            JsonValue::String(s) => Ok(s.into_bytes()),
-            _ => Err("expected a string value for a String parameter".to_string()),
-        },
-        ParameterType::Integer => match value {
-            JsonValue::Number(n) => n
-                .as_i64()
-                .map(|i| i.to_be_bytes().to_vec())
-                .ok_or_else(|| "expected an integer value for an Integer parameter".to_string()),
-            _ => Err("expected a number value for an Integer parameter".to_string()),
-        },
-        ParameterType::Float => match value {
-            JsonValue::Number(n) => n
-                .as_f64()
-                .map(|f| f.to_be_bytes().to_vec())
-                .ok_or_else(|| "expected a float value for a Float parameter".to_string()),
-            _ => Err("expected a number value for a Float parameter".to_string()),
-        },
-        ParameterType::Boolean => match value {
-            JsonValue::Bool(b) => Ok(vec![if b { 1u8 } else { 0u8 }]),
-            _ => Err("expected a boolean value for a Boolean parameter".to_string()),
-        },
-        ParameterType::Binary => match value {
-            JsonValue::String(s) => STANDARD
-                .decode(s.as_bytes())
-                .map_err(|e| format!("invalid base64 for Binary parameter: {e}")),
-            _ => Err("expected a base64 string value for a Binary parameter".to_string()),
-        },
-    }
-}
 
 // ---------------------------------------------------------------------------
 // Payload types
@@ -112,7 +44,7 @@ impl From<DeviceTypeParameter> for DeviceTypeParameterPayload {
     fn from(src: DeviceTypeParameter) -> Self {
         let default_value = src
             .default_value
-            .and_then(|bytes| bytes_to_json_value(src.type_, bytes).ok());
+            .and_then(|bytes| parameter_to_json_value(src.type_, bytes).ok());
         Self {
             id: src.id,
             device_type: src.device_type,
@@ -142,7 +74,7 @@ pub async fn create_device_type_parameter(
     let key_for_error = key_trimmed.clone();
 
     let default_bytes: Option<Vec<u8>> = match payload.default_value {
-        Some(v) => match json_value_to_bytes(payload.type_, v) {
+        Some(v) => match json_value_to_parameter(payload.type_, v) {
             Ok(bytes) => Some(bytes),
             Err(msg) => return Err(rest::error::client_error(StatusCode::BAD_REQUEST, msg)),
         },
