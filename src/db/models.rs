@@ -123,20 +123,19 @@ pub struct NewDeviceKey {
 #[derive(Debug, Clone, Identifiable, Queryable, Selectable, Associations, AsChangeset)]
 #[diesel(table_name = crate::db::schema::device_parameter)]
 #[diesel(belongs_to(Device, foreign_key = device))]
+#[diesel(belongs_to(DeviceTypeParameter, foreign_key = device_type_parameter))]
 pub struct DeviceParameter {
     pub id: i32,
-    pub device: i32, // FK -> device.id
-    pub key: String,
-    pub type_: ParameterType,
-    pub value: Option<Vec<u8>>, // Bytea
+    pub device: i32,                // FK -> device.id
+    pub device_type_parameter: i32, // FK -> device_type_parameter.id
+    pub value: Option<Vec<u8>>,     // Bytea
 }
 
 #[derive(Debug, Clone, Insertable)]
 #[diesel(table_name = crate::db::schema::device_parameter)]
 pub struct NewDeviceParameter {
     pub device: i32,
-    pub key: String,
-    pub type_: ParameterType,
+    pub device_type_parameter: i32,
     pub value: Option<Vec<u8>>,
 }
 

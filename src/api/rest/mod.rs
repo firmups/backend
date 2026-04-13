@@ -7,6 +7,7 @@ use tokio::signal;
 
 mod device;
 mod device_key;
+mod device_parameter;
 mod device_type;
 mod device_type_firmware;
 mod device_type_parameter;
@@ -114,6 +115,22 @@ impl RestApi {
             .route("/device/{id}", axum::routing::get(device::get_device))
             .route("/device/{id}", axum::routing::patch(device::update_device))
             .route("/device/{id}", axum::routing::delete(device::delete_device))
+            .route(
+                "/device/{id}/parameter",
+                axum::routing::get(device_parameter::list_device_parameters),
+            )
+            .route(
+                "/device/{id}/parameter/{param_id}",
+                axum::routing::get(device_parameter::get_device_parameter),
+            )
+            .route(
+                "/device/{id}/parameter/{param_id}",
+                axum::routing::put(device_parameter::set_device_parameter),
+            )
+            .route(
+                "/device/{id}/parameter/{param_id}",
+                axum::routing::delete(device_parameter::reset_device_parameter),
+            )
             .route(
                 "/device/{id}/key",
                 axum::routing::get(device_key::list_device_keys),

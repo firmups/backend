@@ -86,10 +86,11 @@ CREATE TABLE device (
 CREATE TABLE device_parameter (
     id SERIAL PRIMARY KEY,
     device INT NOT NULL,
-    key VARCHAR(100) NOT NULL,
-    type parameter_type NOT NULL,
+    device_type_parameter INT NOT NULL,
     value BYTEA,
-    FOREIGN KEY (device) REFERENCES device(id) ON DELETE RESTRICT
+    FOREIGN KEY (device) REFERENCES device(id) ON DELETE CASCADE,
+    FOREIGN KEY (device_type_parameter) REFERENCES device_type_parameter(id) ON DELETE RESTRICT,
+    CONSTRAINT device_parameter_unique UNIQUE (device, device_type_parameter)
 );
 
 -- Device Keys
