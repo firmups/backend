@@ -78,6 +78,7 @@ pub struct Device {
     pub firmware: Option<i32>,
     pub desired_firmware: i32,
     pub status: DeviceStatus,
+    pub gateway_id: Option<i32>,
 }
 
 #[derive(Debug, Clone, Insertable, serde::Serialize, serde::Deserialize)]
@@ -88,6 +89,7 @@ pub struct NewDevice {
     pub firmware: Option<i32>,
     pub desired_firmware: i32,
     pub status: DeviceStatus,
+    pub gateway_id: Option<i32>,
 }
 
 #[derive(Debug, Clone, AsChangeset, serde::Serialize, serde::Deserialize)]
@@ -97,6 +99,7 @@ pub struct UpdateDevice {
     pub firmware: Option<i32>,
     pub desired_firmware: Option<i32>,
     pub status: Option<DeviceStatus>,
+    pub gateway_id: Option<Option<i32>>,
 }
 
 // device_key

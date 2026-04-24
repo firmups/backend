@@ -165,6 +165,7 @@ impl OperationHandler {
                     desired_firmware: None,
                     status: Some(ds),
                     name: None,
+                    gateway_id: req.gateway_id.map(|inner| inner.map(|v| v as i32)),
                 };
 
                 // Perform the insert and return the created row
@@ -215,6 +216,12 @@ impl OperationHandler {
                                 );
                                 Err(self.handle_error_operation(
                                     operation::OperationError::InternalError,
+                                ))
+                            }
+                            Some("fk_gateway") => {
+                                warn!("Foreign key violation: unknown gateway device");
+                                Err(self.handle_error_operation(
+                                    operation::OperationError::InvalidOperation,
                                 ))
                             }
                             _ => Err(self
