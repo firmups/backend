@@ -1392,6 +1392,10 @@ components:
           type: integer
         status:
           $ref: "#/components/schemas/DeviceStatus"
+        gateway_id:
+          description: ID of the gateway device this device communicates through
+          type: integer
+          nullable: true
       required:
         - name
         - type_
@@ -1408,6 +1412,10 @@ components:
           type: integer
         status:
           $ref: "#/components/schemas/DeviceStatus"
+        gateway_id:
+          description: Gateway device this device communicates through. Omit to leave unchanged, set to null to clear.
+          type: integer
+          nullable: true
     Device:
       type: object
       properties:
@@ -1425,6 +1433,10 @@ components:
           type: integer
         status:
           $ref: "#/components/schemas/DeviceStatus"
+        gateway_id:
+          description: ID of the gateway device this device communicates through
+          type: integer
+          nullable: true
       required:
         - id
         - name

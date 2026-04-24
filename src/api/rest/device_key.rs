@@ -139,12 +139,12 @@ pub async fn create_device_key(
                                 };
                             }
                             CryptoAlgorithm::AesGcm128 => {
-                                if det.key.len() != 12 /* ToDo: Replace magic number */ {
+                                if det.key.len() != 16 /* ToDo: Replace magic number */ {
                                     return Err(rest::error::TransactionError::from(
                                         rest::error::client_error(
                                             StatusCode::BAD_REQUEST,
                                             format!(
-                                                "Invalid key length {} for aes gcm128 should be 12",
+                                                "Invalid key length {} for aes gcm128 should be 16",
                                                 det.key.len()
                                             ),
                                         ),
@@ -301,13 +301,6 @@ pub async fn list_device_keys(
         .load(&mut conn)
         .await
         .map_err(rest::error::internal_error)?;
-
-    if rows.is_empty() {
-        return Err(rest::error::client_error(
-            StatusCode::NOT_FOUND,
-            format!("device {} not found", device_id),
-        ));
-    }
 
     let mut res = Vec::<DeviceKeyPayload>::new();
     for (key, lw_opt, tls_opt) in rows {

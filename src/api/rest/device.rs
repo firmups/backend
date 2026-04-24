@@ -116,6 +116,7 @@ pub async fn create_device(
         firmware: payload.firmware,
         desired_firmware: payload.desired_firmware,
         status: payload.status,
+        gateway_id: payload.gateway_id,
     };
 
     let device_type_id = payload.type_;
@@ -185,6 +186,10 @@ pub async fn create_device(
             Some("fk_device_type_desired") => Err(rest::error::client_error(
                 StatusCode::BAD_REQUEST,
                 "device type has no link to desired firmware".to_string(),
+            )),
+            Some("fk_gateway") => Err(rest::error::client_error(
+                StatusCode::BAD_REQUEST,
+                "unknown gateway device".to_string(),
             )),
             _ => {
                 let error =
@@ -273,9 +278,7 @@ pub async fn update_device(
     let tx_result: Result<Device, rest::error::TransactionError> = conn
         .transaction::<_, rest::error::TransactionError, _>(move |mut conn| {
             Box::pin(async move {
-                // If setting status to Active, validate that all required parameters have values
                 if payload.status == Some(DeviceStatus::Active) {
-                    // Get current device to check its type
                     let current_device: Device = device_dsl::device
                         .find(path_id)
                         .select(Device::as_select())
@@ -283,7 +286,6 @@ pub async fn update_device(
                         .first(&mut conn)
                         .await?;
 
-                    // Only check if not already active
                     if current_device.status != DeviceStatus::Active {
                         let missing = get_missing_param_overrides(
                             conn,
@@ -343,6 +345,10 @@ pub async fn update_device(
             Some("fk_device_type_desired") => Err(rest::error::client_error(
                 StatusCode::BAD_REQUEST,
                 "device type has no link to desired firmware".to_string(),
+            )),
+            Some("fk_gateway") => Err(rest::error::client_error(
+                StatusCode::BAD_REQUEST,
+                "unknown gateway device".to_string(),
             )),
             _ => {
                 let error =

@@ -29,6 +29,42 @@ pub struct RestApi {
     router: axum::Router,
 }
 
+async fn cors_mw(
+    req: axum::http::Request<axum::body::Body>,
+    next: axum::middleware::Next,
+) -> axum::response::Response {
+    let origin = req.headers().get(axum::http::header::ORIGIN).cloned();
+
+    if req.method() == axum::http::Method::OPTIONS {
+        let mut res = axum::response::Response::new(axum::body::Body::empty());
+        *res.status_mut() = StatusCode::NO_CONTENT;
+        let headers = res.headers_mut();
+        if let Some(o) = origin {
+            headers.insert(axum::http::header::ACCESS_CONTROL_ALLOW_ORIGIN, o);
+        }
+        headers.insert(
+            axum::http::header::ACCESS_CONTROL_ALLOW_METHODS,
+            "GET,POST,PATCH,PUT,DELETE,OPTIONS".parse().unwrap(),
+        );
+        headers.insert(
+            axum::http::header::ACCESS_CONTROL_ALLOW_HEADERS,
+            "content-type,x-api-key".parse().unwrap(),
+        );
+        headers.insert(
+            axum::http::header::ACCESS_CONTROL_MAX_AGE,
+            "86400".parse().unwrap(),
+        );
+        return res;
+    }
+
+    let mut res = next.run(req).await;
+    if let Some(o) = origin {
+        res.headers_mut()
+            .insert(axum::http::header::ACCESS_CONTROL_ALLOW_ORIGIN, o);
+    }
+    res
+}
+
 async fn api_key_mw(
     axum::extract::State(state): axum::extract::State<RestApiConfig>,
     req: axum::http::Request<axum::body::Body>,
@@ -187,7 +223,8 @@ impl RestApi {
             .layer(axum::middleware::from_fn_with_state(
                 config.clone(),
                 api_key_mw,
-            )); // apply globally
+            ))
+            .layer(axum::middleware::from_fn(cors_mw));
         RestApi { config, router }
     }
 

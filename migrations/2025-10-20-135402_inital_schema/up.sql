@@ -47,6 +47,7 @@ CREATE TABLE device (
     firmware INT,
     desired_firmware INT NOT NULL,
     status device_status NOT NULL,
+    gateway_id INT,
     CONSTRAINT fk_device_type FOREIGN KEY (type) REFERENCES device_type(id) ON DELETE RESTRICT,
     CONSTRAINT fk_firmware FOREIGN KEY (firmware) REFERENCES firmware(id) ON DELETE RESTRICT,
     CONSTRAINT fk_desired_firmware FOREIGN KEY (desired_firmware) REFERENCES firmware(id) ON DELETE RESTRICT,
@@ -57,7 +58,8 @@ CREATE TABLE device (
     CONSTRAINT fk_device_type_desired
         FOREIGN KEY (type, desired_firmware)
         REFERENCES device_type_firmware (device_type, firmware)
-        ON UPDATE CASCADE ON DELETE RESTRICT
+        ON UPDATE CASCADE ON DELETE RESTRICT,
+    CONSTRAINT fk_gateway FOREIGN KEY (gateway_id) REFERENCES device(id) ON DELETE SET NULL
 );
 
 -- -- Device Errors

@@ -35,6 +35,7 @@ diesel::table! {
         firmware -> Nullable<Int4>,
         desired_firmware -> Int4,
         status -> DeviceStatus,
+        gateway_id -> Nullable<Int4>,
     }
 }
 

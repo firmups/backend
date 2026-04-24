@@ -28,11 +28,14 @@ pub struct GetDeviceInfoResponse {
 pub struct SetDeviceInfoRequestDecode {
     pub firmware: Option<u32>,
     pub status: Option<u8>,
+    // None = field absent (no change), Some(None) = clear gateway, Some(Some(id)) = set gateway
+    pub gateway_id: Option<Option<u32>>,
 }
 
 pub struct SetDeviceInfoRequest {
     pub firmware: u32,
     pub status: u8,
+    pub gateway_id: Option<Option<u32>>,
 }
 
 impl TryFrom<SetDeviceInfoRequestDecode> for SetDeviceInfoRequest {
@@ -49,6 +52,7 @@ impl TryFrom<SetDeviceInfoRequestDecode> for SetDeviceInfoRequest {
         Ok(SetDeviceInfoRequest {
             firmware: fw,
             status: st,
+            gateway_id: src.gateway_id,
         })
     }
 }
@@ -96,20 +100,34 @@ pub fn decode_set_device_info_request(
     operation: &[u8],
 ) -> Result<SetDeviceInfoRequest, minicbor::decode::Error> {
     let mut decoder = minicbor::Decoder::new(operation);
-    let mut set_device_info_request = SetDeviceInfoRequestDecode {
+    let mut req = SetDeviceInfoRequestDecode {
         firmware: None,
         status: None,
+        gateway_id: None,
     };
     debug!("Starting operation decoding");
-    if decoder.array()? != Some(2) {
-        return Err(minicbor::decode::Error::message(
-            "Expected cose array of length 3",
-        ));
+    let len = decoder.array()?;
+    match len {
+        Some(2) => {}
+        Some(3) => {}
+        _ => {
+            return Err(minicbor::decode::Error::message(
+                "Expected array of length 2 or 3",
+            ));
+        }
     }
-    set_device_info_request.firmware = Some(decoder.u32()?);
-    set_device_info_request.status = Some(decoder.u8()?);
+    req.firmware = Some(decoder.u32()?);
+    req.status = Some(decoder.u8()?);
+    if len == Some(3) {
+        req.gateway_id = Some(if decoder.datatype()? == minicbor::data::Type::Null {
+            decoder.null()?;
+            None
+        } else {
+            Some(decoder.u32()?)
+        });
+    }
 
-    set_device_info_request.try_into()
+    req.try_into()
 }
 
 pub fn encode_set_device_info_response(
