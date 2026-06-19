@@ -122,40 +122,38 @@ pub async fn create_device(
     let device_type_id = payload.type_;
 
     let tx_result: Result<Device, rest::error::TransactionError> = conn
-        .transaction::<_, rest::error::TransactionError, _>(move |mut conn| {
-            Box::pin(async move {
-                // Lock device_type to prevent race conditions with parameter creation
-                // Namespace 2 = device_type locks
-                diesel::dsl::sql_query("SELECT pg_advisory_xact_lock(2, $1)")
-                    .bind::<diesel::sql_types::Integer, _>(device_type_id)
-                    .execute(&mut conn)
-                    .await?;
+        .transaction::<_, rest::error::TransactionError, _>(async move |conn| {
+            // Lock device_type to prevent race conditions with parameter creation
+            // Namespace 2 = device_type locks
+            diesel::dsl::sql_query("SELECT pg_advisory_xact_lock(2, $1)")
+                .bind::<diesel::sql_types::Integer, _>(device_type_id)
+                .execute(conn)
+                .await?;
 
-                // If status is Active, check that there are no parameters without defaults
-                // (since a new device cannot have any overrides yet)
-                if new_row.status == DeviceStatus::Active {
-                    let params_without_defaults =
-                        get_params_without_defaults(conn, device_type_id).await?;
-                    if !params_without_defaults.is_empty() {
-                        return Err(rest::error::client_error(
-                            StatusCode::BAD_REQUEST,
-                            format!(
-                                "cannot set device to active: missing values for parameters without defaults: {}",
-                                params_without_defaults.join(", ")
-                            ),
-                        )
-                        .into());
-                    }
+            // If status is Active, check that there are no parameters without defaults
+            // (since a new device cannot have any overrides yet)
+            if new_row.status == DeviceStatus::Active {
+                let params_without_defaults =
+                    get_params_without_defaults(conn, device_type_id).await?;
+                if !params_without_defaults.is_empty() {
+                    return Err(rest::error::client_error(
+                        StatusCode::BAD_REQUEST,
+                        format!(
+                            "cannot set device to active: missing values for parameters without defaults: {}",
+                            params_without_defaults.join(", ")
+                        ),
+                    )
+                    .into());
                 }
+            }
 
-                let device: Device = diesel::insert_into(device_dsl::device)
-                    .values(&new_row)
-                    .returning(Device::as_returning())
-                    .get_result(&mut conn)
-                    .await?;
+            let device: Device = diesel::insert_into(device_dsl::device)
+                .values(&new_row)
+                .returning(Device::as_returning())
+                .get_result(conn)
+                .await?;
 
-                Ok(device)
-            })
+            Ok(device)
         })
         .await;
 
@@ -276,45 +274,39 @@ pub async fn update_device(
     };
 
     let tx_result: Result<Device, rest::error::TransactionError> = conn
-        .transaction::<_, rest::error::TransactionError, _>(move |mut conn| {
-            Box::pin(async move {
-                if payload.status == Some(DeviceStatus::Active) {
-                    let current_device: Device = device_dsl::device
-                        .find(path_id)
-                        .select(Device::as_select())
-                        .for_share()
-                        .first(&mut conn)
-                        .await?;
-
-                    if current_device.status != DeviceStatus::Active {
-                        let missing = get_missing_param_overrides(
-                            conn,
-                            path_id,
-                            current_device.type_,
-                        )
-                        .await?;
-
-                        if !missing.is_empty() {
-                            return Err(rest::error::client_error(
-                                StatusCode::BAD_REQUEST,
-                                format!(
-                                    "cannot set device to active: missing values for parameters: {}",
-                                    missing.join(", ")
-                                ),
-                            )
-                            .into());
-                        }
-                    }
-                }
-
-                let device: Device = diesel::update(device_dsl::device.find(path_id))
-                    .set(&payload)
-                    .returning(Device::as_returning())
-                    .get_result(&mut conn)
+        .transaction::<_, rest::error::TransactionError, _>(async move |conn| {
+            if payload.status == Some(DeviceStatus::Active) {
+                let current_device: Device = device_dsl::device
+                    .find(path_id)
+                    .select(Device::as_select())
+                    .for_share()
+                    .first(conn)
                     .await?;
 
-                Ok(device)
-            })
+                if current_device.status != DeviceStatus::Active {
+                    let missing =
+                        get_missing_param_overrides(conn, path_id, current_device.type_).await?;
+
+                    if !missing.is_empty() {
+                        return Err(rest::error::client_error(
+                            StatusCode::BAD_REQUEST,
+                            format!(
+                                "cannot set device to active: missing values for parameters: {}",
+                                missing.join(", ")
+                            ),
+                        )
+                        .into());
+                    }
+                }
+            }
+
+            let device: Device = diesel::update(device_dsl::device.find(path_id))
+                .set(&payload)
+                .returning(Device::as_returning())
+                .get_result(conn)
+                .await?;
+
+            Ok(device)
         })
         .await;
 
