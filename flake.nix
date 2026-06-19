@@ -1,7 +1,7 @@
 {
   description = "FIRMUPS backend development environment";
 
-  inputs.nixpkgs.url = "github:nixos/nixpkgs?ref=25.11";
+  inputs.nixpkgs.url = "github:nixos/nixpkgs?ref=26.05";
   inputs.git-hooks.url = "github:cachix/git-hooks.nix";
   inputs.rust-overlay = {
     url = "github:oxalica/rust-overlay";
@@ -98,7 +98,7 @@
               bashInteractive
               nixfmt
             ];
-            packages = [ preCommit.enabledPackages ];
+            packages = preCommit.enabledPackages;
             shellHook = ''
               # Enable git hooks
               ${preCommit.shellHook}
@@ -139,7 +139,7 @@
 
             # Use cargoHash for modern nixpkgs (>= 23.11). It vendors crates automatically.
             # First run with a dummy hash (sha256-AAAAAAAA...) to get the correct hash from the error.
-            cargoHash = "sha256-fV+0nP34RPjk/WgEBmWw5kwZDGLM3p9C8a55e0AkfL8=";
+            cargoHash = "sha256-AW2dD1Xoye6K0N62IKdCqvkJoTSjKPbMdqlusu+9i/w=";
 
             buildInputs = with pkgs; [
             ];
@@ -172,7 +172,7 @@
         in
         {
           dockerImage = pkgs.dockerTools.buildLayeredImage {
-            name = "firmups-backend-docker";
+            name = "firmups-backend";
             tag = "v0.1.1";
 
             contents = [

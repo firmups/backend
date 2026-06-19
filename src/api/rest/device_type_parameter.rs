@@ -82,54 +82,50 @@ pub async fn create_device_type_parameter(
     };
 
     let tx_result: Result<DeviceTypeParameterPayload, rest::error::TransactionError> = conn
-        .transaction::<_, rest::error::TransactionError, _>(|mut conn| {
-            let key_trimmed = key_trimmed;
-            let default_bytes = default_bytes;
-            Box::pin(async move {
-                // Lock device_type to prevent race conditions with device creation
-                // Namespace 2 = device_type locks
-                diesel::dsl::sql_query("SELECT pg_advisory_xact_lock(2, $1)")
-                    .bind::<diesel::sql_types::Integer, _>(device_type_id)
-                    .execute(&mut conn)
-                    .await?;
+        .transaction::<_, rest::error::TransactionError, _>(async move |conn| {
+            // Lock device_type to prevent race conditions with device creation
+            // Namespace 2 = device_type locks
+            diesel::dsl::sql_query("SELECT pg_advisory_xact_lock(2, $1)")
+                .bind::<diesel::sql_types::Integer, _>(device_type_id)
+                .execute(conn)
+                .await?;
 
-                // If no default_value is provided, check that no devices exist with this device_type
-                if default_bytes.is_none() {
-                    let devices_exist: bool = diesel::select(diesel::dsl::exists(
-                        device_dsl::device.filter(device_dsl::type_.eq(device_type_id)),
-                    ))
-                    .get_result(&mut conn)
-                    .await?;
+            // If no default_value is provided, check that no devices exist with this device_type
+            if default_bytes.is_none() {
+                let devices_exist: bool = diesel::select(diesel::dsl::exists(
+                    device_dsl::device.filter(device_dsl::type_.eq(device_type_id)),
+                ))
+                .get_result(conn)
+                .await?;
 
-                    if devices_exist {
-                        return Err(rest::error::TransactionError::from(
-                            rest::error::client_error(
-                                StatusCode::CONFLICT,
-                                format!(
-                                    "cannot add parameter without default value to device type {}: devices already exist",
-                                    device_type_id
-                                ),
+                if devices_exist {
+                    return Err(rest::error::TransactionError::from(
+                        rest::error::client_error(
+                            StatusCode::CONFLICT,
+                            format!(
+                                "cannot add parameter without default value to device type {}: devices already exist",
+                                device_type_id
                             ),
-                        ));
-                    }
+                        ),
+                    ));
                 }
+            }
 
-                let new_param = NewDeviceTypeParameter {
-                    device_type: device_type_id,
-                    key: key_trimmed,
-                    type_: payload.type_,
-                    default_value: default_bytes,
-                };
+            let new_param = NewDeviceTypeParameter {
+                device_type: device_type_id,
+                key: key_trimmed,
+                type_: payload.type_,
+                default_value: default_bytes,
+            };
 
-                let created: DeviceTypeParameter =
-                    diesel::insert_into(dtp_dsl::device_type_parameter)
-                        .values(&new_param)
-                        .returning(DeviceTypeParameter::as_returning())
-                        .get_result(&mut conn)
-                        .await?;
+            let created: DeviceTypeParameter =
+                diesel::insert_into(dtp_dsl::device_type_parameter)
+                    .values(&new_param)
+                    .returning(DeviceTypeParameter::as_returning())
+                    .get_result(conn)
+                    .await?;
 
-                Ok(created.into())
-            })
+            Ok(created.into())
         })
         .await;
 
@@ -275,45 +271,43 @@ pub async fn delete_device_type_parameter(
         .map_err(rest::error::internal_error)?;
 
     let tx_result: Result<DeviceTypeParameterPayload, rest::error::TransactionError> = conn
-        .transaction::<_, rest::error::TransactionError, _>(|mut conn| {
-            Box::pin(async move {
-                // Lock device_type to prevent race conditions with device creation
-                // Namespace 2 = device_type locks
-                diesel::dsl::sql_query("SELECT pg_advisory_xact_lock(2, $1)")
-                    .bind::<diesel::sql_types::Integer, _>(device_type_id)
-                    .execute(&mut conn)
-                    .await?;
-
-                // Check if any devices exist with this device type
-                let devices_exist: bool = diesel::select(diesel::dsl::exists(
-                    device_dsl::device.filter(device_dsl::type_.eq(device_type_id)),
-                ))
-                .get_result(&mut conn)
+        .transaction::<_, rest::error::TransactionError, _>(async move |conn| {
+            // Lock device_type to prevent race conditions with device creation
+            // Namespace 2 = device_type locks
+            diesel::dsl::sql_query("SELECT pg_advisory_xact_lock(2, $1)")
+                .bind::<diesel::sql_types::Integer, _>(device_type_id)
+                .execute(conn)
                 .await?;
 
-                if devices_exist {
-                    return Err(rest::error::TransactionError::from(
-                        rest::error::client_error(
-                            StatusCode::CONFLICT,
-                            format!(
-                                "cannot delete parameter from device type {}: devices already exist",
-                                device_type_id
-                            ),
+            // Check if any devices exist with this device type
+            let devices_exist: bool = diesel::select(diesel::dsl::exists(
+                device_dsl::device.filter(device_dsl::type_.eq(device_type_id)),
+            ))
+            .get_result(conn)
+            .await?;
+
+            if devices_exist {
+                return Err(rest::error::TransactionError::from(
+                    rest::error::client_error(
+                        StatusCode::CONFLICT,
+                        format!(
+                            "cannot delete parameter from device type {}: devices already exist",
+                            device_type_id
                         ),
-                    ));
-                }
+                    ),
+                ));
+            }
 
-                let deleted: DeviceTypeParameter = diesel::delete(
-                    dtp_dsl::device_type_parameter
-                        .filter(dtp_dsl::id.eq(param_id))
-                        .filter(dtp_dsl::device_type.eq(device_type_id)),
-                )
-                .returning(DeviceTypeParameter::as_returning())
-                .get_result(&mut conn)
-                .await?;
+            let deleted: DeviceTypeParameter = diesel::delete(
+                dtp_dsl::device_type_parameter
+                    .filter(dtp_dsl::id.eq(param_id))
+                    .filter(dtp_dsl::device_type.eq(device_type_id)),
+            )
+            .returning(DeviceTypeParameter::as_returning())
+            .get_result(conn)
+            .await?;
 
-                Ok(deleted.into())
-            })
+            Ok(deleted.into())
         })
         .await;
 

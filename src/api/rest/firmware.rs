@@ -113,7 +113,11 @@ pub async fn create_firmware(
     let in_sha256 = {
         let mut hasher = Sha256::new();
         hasher.update(&file);
-        format!("{:x}", hasher.finalize())
+        hasher
+            .finalize()
+            .iter()
+            .map(|b| format!("{:02x}", b))
+            .collect::<String>()
     };
 
     let new_firmware = NewFirmware {

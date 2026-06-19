@@ -108,132 +108,134 @@ pub async fn create_device_key(
     };
 
     let tx_result: Result<DeviceKeyPayload, rest::error::TransactionError> = conn
-        .transaction::<_, rest::error::TransactionError, _>(|mut conn| {
-            Box::pin(async move {
-                let kind: DeviceKeyKind;
-                let key_type: KeyType;
-                let mut key_status: KeyStatus = KeyStatus::Next;
+        .transaction::<_, rest::error::TransactionError, _>(async move |conn| {
+            let kind: DeviceKeyKind;
+            let key_type: KeyType;
+            let mut key_status: KeyStatus = KeyStatus::Next;
 
-                // Lock device to prevent multiple keys being created simultaneously
-                // Namespace 1 = device locks
-                diesel::dsl::sql_query("SELECT pg_advisory_xact_lock(1, $1)")
-                    .bind::<diesel::sql_types::Integer, _>(device_id)
-                    .execute(&mut conn)
-                    .await?;
+            // Lock device to prevent multiple keys being created simultaneously
+            // Namespace 1 = device locks
+            diesel::dsl::sql_query("SELECT pg_advisory_xact_lock(1, $1)")
+                .bind::<diesel::sql_types::Integer, _>(device_id)
+                .execute(conn)
+                .await?;
 
-                match payload.kind.clone() {
-                    NewDeviceKeyKind::Lightweight { details: det } => {
-                        key_type = KeyType::Lightweight;
-                        match det.algorithm {
-                            CryptoAlgorithm::AsconAead128  => {
-                                if det.key.len() != 16 /* ToDo: Replace magic number */ {
-                                    return Err(rest::error::TransactionError::from(
-                                        rest::error::client_error(
-                                            StatusCode::BAD_REQUEST,
-                                            format!(
-                                                "Invalid key length {} for ascon aead128 should be 16",
-                                                det.key.len()
-                                            ),
+            match payload.kind.clone() {
+                NewDeviceKeyKind::Lightweight { details: det } => {
+                    key_type = KeyType::Lightweight;
+                    match det.algorithm {
+                        CryptoAlgorithm::AsconAead128 => {
+                            if det.key.len() != 16
+                            /* ToDo: Replace magic number */
+                            {
+                                return Err(rest::error::TransactionError::from(
+                                    rest::error::client_error(
+                                        StatusCode::BAD_REQUEST,
+                                        format!(
+                                            "Invalid key length {} for ascon aead128 should be 16",
+                                            det.key.len()
                                         ),
-                                    ));
-                                };
-                            }
-                            CryptoAlgorithm::AesGcm128 => {
-                                if det.key.len() != 16 /* ToDo: Replace magic number */ {
-                                    return Err(rest::error::TransactionError::from(
-                                        rest::error::client_error(
-                                            StatusCode::BAD_REQUEST,
-                                            format!(
-                                                "Invalid key length {} for aes gcm128 should be 16",
-                                                det.key.len()
-                                            ),
+                                    ),
+                                ));
+                            };
+                        }
+                        CryptoAlgorithm::AesGcm128 => {
+                            if det.key.len() != 16
+                            /* ToDo: Replace magic number */
+                            {
+                                return Err(rest::error::TransactionError::from(
+                                    rest::error::client_error(
+                                        StatusCode::BAD_REQUEST,
+                                        format!(
+                                            "Invalid key length {} for aes gcm128 should be 16",
+                                            det.key.len()
                                         ),
-                                    ));
-                                };
-                            }
+                                    ),
+                                ));
+                            };
                         }
                     }
-                    NewDeviceKeyKind::Tls { details: _ } => {
-                        key_type = KeyType::Tls;
-                    }
                 }
+                NewDeviceKeyKind::Tls { details: _ } => {
+                    key_type = KeyType::Tls;
+                }
+            }
 
-                let next_filter = key_dsl::device_key
-                    .filter(key_dsl::device.eq(device_id))
-                    .filter(key_dsl::status.eq(KeyStatus::Next));
-                let next_exists: bool = diesel::select(diesel::dsl::exists(next_filter))
-                    .get_result(conn)
-                    .await?;
-                if next_exists {
+            let next_filter = key_dsl::device_key
+                .filter(key_dsl::device.eq(device_id))
+                .filter(key_dsl::status.eq(KeyStatus::Next));
+            let next_exists: bool = diesel::select(diesel::dsl::exists(next_filter))
+                .get_result(conn)
+                .await?;
+            if next_exists {
+                return Err(rest::error::TransactionError::from(
+                    rest::error::client_error(
+                        StatusCode::CONFLICT,
+                        format!(
+                            "Already a key with NEXT state present on device {}",
+                            device_id
+                        ),
+                    ),
+                ));
+            }
+            let active_filter = key_dsl::device_key
+                .filter(key_dsl::device.eq(device_id))
+                .filter(key_dsl::status.eq(KeyStatus::Active));
+            let active_exists: bool = diesel::select(diesel::dsl::exists(active_filter))
+                .get_result(conn)
+                .await?;
+            if !active_exists {
+                info!(
+                    "No ACTIVE key on device {}, setting new key to ACTIVE (initial provisioning)",
+                    device_id
+                );
+                key_status = KeyStatus::Active;
+            }
+
+            let new_device_key = crate::db::models::NewDeviceKey {
+                device: device_id,
+                key_type,
+                status: key_status,
+            };
+            let device_key: DeviceKey = diesel::insert_into(key_dsl::device_key)
+                .values(&new_device_key)
+                .returning(DeviceKey::as_returning())
+                .get_result(conn)
+                .await?;
+
+            match payload.kind.clone() {
+                NewDeviceKeyKind::Lightweight { details } => {
+                    let to_insert = NewLightweightKeyDetails {
+                        device_key: device_key.id,
+                        algorithm: details.algorithm,
+                        key: details.key,
+                    };
+                    let insert = diesel::insert_into(lw_dsl::lightweight_key_details)
+                        .values(&to_insert)
+                        .returning(LightweightKeyDetails::as_returning())
+                        .get_result(conn)
+                        .await?;
+                    kind = DeviceKeyKind::Lightweight {
+                        details: LightweightKeyDetailsPayload {
+                            algorithm: insert.algorithm,
+                            key: insert.key,
+                        },
+                    };
+                }
+                NewDeviceKeyKind::Tls { details: _ } => {
                     return Err(rest::error::TransactionError::from(
                         rest::error::client_error(
                             StatusCode::CONFLICT,
-                            format!(
-                                "Already a key with NEXT state present on device {}",
-                                device_id
-                            ),
+                            "TLS key functionality not yet implemented".to_string(),
                         ),
                     ));
                 }
-                let active_filter = key_dsl::device_key
-                    .filter(key_dsl::device.eq(device_id))
-                    .filter(key_dsl::status.eq(KeyStatus::Active));
-                let active_exists: bool = diesel::select(diesel::dsl::exists(active_filter))
-                    .get_result(conn)
-                    .await?;
-                if !active_exists {
-                    info!(
-                        "No ACTIVE key on device {}, setting new key to ACTIVE (initial provisioning)",
-                        device_id
-                    );
-                    key_status = KeyStatus::Active;
-                }
+            }
 
-                let new_device_key = crate::db::models::NewDeviceKey {
-                    device: device_id,
-                    key_type,
-                    status: key_status,
-                };
-                let device_key: DeviceKey = diesel::insert_into(key_dsl::device_key)
-                    .values(&new_device_key)
-                    .returning(DeviceKey::as_returning())
-                    .get_result(&mut conn)
-                    .await?;
-
-                match payload.kind.clone() {
-                    NewDeviceKeyKind::Lightweight { details } => {
-                        let to_insert = NewLightweightKeyDetails {
-                            device_key: device_key.id,
-                            algorithm: details.algorithm,
-                            key: details.key,
-                        };
-                        let insert = diesel::insert_into(lw_dsl::lightweight_key_details)
-                            .values(&to_insert)
-                            .returning(LightweightKeyDetails::as_returning())
-                            .get_result(&mut conn)
-                            .await?;
-                        kind = DeviceKeyKind::Lightweight {
-                            details: LightweightKeyDetailsPayload {
-                                algorithm: insert.algorithm,
-                                key: insert.key,
-                            },
-                        };
-                    }
-                    NewDeviceKeyKind::Tls { details: _ } => {
-                        return Err(rest::error::TransactionError::from(
-                            rest::error::client_error(
-                                StatusCode::CONFLICT,
-                                "TLS key functionality not yet implemented".to_string(),
-                            ),
-                        ));
-                    }
-                }
-
-                Ok(DeviceKeyPayload {
-                    id: device_key.id,
-                    status: device_key.status,
-                    kind,
-                })
+            Ok(DeviceKeyPayload {
+                id: device_key.id,
+                status: device_key.status,
+                kind,
             })
         })
         .await;
@@ -413,76 +415,73 @@ pub async fn delete_device_key(
         .map_err(rest::error::internal_error)?;
 
     let tx_result: Result<DeviceKeyPayload, rest::error::TransactionError> = conn
-        .transaction::<_, rest::error::TransactionError, _>(|mut conn| {
-            Box::pin(async move {
-                let active_filter = key_dsl::device_key
-                    .filter(key_dsl::id.eq(path_id))
-                    .filter(key_dsl::device.eq(device_id))
-                    .filter(key_dsl::status.eq(KeyStatus::Active));
-                let is_active: bool = diesel::select(diesel::dsl::exists(active_filter))
-                    .get_result(conn)
-                    .await?;
-                if is_active {
-                    return Err(rest::error::TransactionError::from(
-                        rest::error::client_error(
-                            StatusCode::CONFLICT,
-                            "Active key on device cannot be deleted".to_string(),
-                        ),
-                    ));
-                }
+        .transaction::<_, rest::error::TransactionError, _>(async move |conn| {
+            let active_filter = key_dsl::device_key
+                .filter(key_dsl::id.eq(path_id))
+                .filter(key_dsl::device.eq(device_id))
+                .filter(key_dsl::status.eq(KeyStatus::Active));
+            let is_active: bool = diesel::select(diesel::dsl::exists(active_filter))
+                .get_result(conn)
+                .await?;
+            if is_active {
+                return Err(rest::error::TransactionError::from(
+                    rest::error::client_error(
+                        StatusCode::CONFLICT,
+                        "Active key on device cannot be deleted".to_string(),
+                    ),
+                ));
+            }
 
-                let (key, lw_opt, tls_opt): (
-                    DeviceKey,
-                    Option<LightweightKeyDetails>,
-                    Option<TlsKeyDetails>,
-                ) = key_dsl::device_key
-                    .filter(key_dsl::id.eq(path_id))
-                    .filter(key_dsl::device.eq(device_id))
-                    .left_outer_join(
-                        lw::table.on(lw_dsl::device_key
-                            .eq(key_dsl::id)
-                            .and(key_dsl::key_type.eq(KeyType::Lightweight))),
-                    )
-                    .left_outer_join(
-                        tls::table.on(tls_dsl::device_key
-                            .eq(key_dsl::id)
-                            .and(key_dsl::key_type.eq(KeyType::Tls))),
-                    )
-                    .select((
-                        dk::all_columns,
-                        lw::all_columns.nullable(),
-                        tls::all_columns.nullable(),
-                    ))
-                    .first(&mut conn)
-                    .await?;
-                let kind: DeviceKeyKind;
-                if let Some(lw_details) = lw_opt {
-                    kind = DeviceKeyKind::Lightweight {
-                        details: lw_details.into(),
-                    };
-                } else if let Some(tls_details) = tls_opt {
-                    kind = DeviceKeyKind::Tls {
-                        details: tls_details.into(),
-                    };
-                } else {
-                    return Err(rest::error::TransactionError::from(
-                        rest::error::internal_error(rest::error::FirmupsRestInternalError {
-                            message: format!("No details found for device key {}", path_id),
-                        }),
-                    ));
-                }
+            let (key, lw_opt, tls_opt): (
+                DeviceKey,
+                Option<LightweightKeyDetails>,
+                Option<TlsKeyDetails>,
+            ) = key_dsl::device_key
+                .filter(key_dsl::id.eq(path_id))
+                .filter(key_dsl::device.eq(device_id))
+                .left_outer_join(
+                    lw::table.on(lw_dsl::device_key
+                        .eq(key_dsl::id)
+                        .and(key_dsl::key_type.eq(KeyType::Lightweight))),
+                )
+                .left_outer_join(
+                    tls::table.on(tls_dsl::device_key
+                        .eq(key_dsl::id)
+                        .and(key_dsl::key_type.eq(KeyType::Tls))),
+                )
+                .select((
+                    dk::all_columns,
+                    lw::all_columns.nullable(),
+                    tls::all_columns.nullable(),
+                ))
+                .first(conn)
+                .await?;
+            let kind: DeviceKeyKind;
+            if let Some(lw_details) = lw_opt {
+                kind = DeviceKeyKind::Lightweight {
+                    details: lw_details.into(),
+                };
+            } else if let Some(tls_details) = tls_opt {
+                kind = DeviceKeyKind::Tls {
+                    details: tls_details.into(),
+                };
+            } else {
+                return Err(rest::error::TransactionError::from(
+                    rest::error::internal_error(rest::error::FirmupsRestInternalError {
+                        message: format!("No details found for device key {}", path_id),
+                    }),
+                ));
+            }
 
-                let _: DeviceKey =
-                    diesel::delete(key_dsl::device_key.filter(key_dsl::id.eq(path_id)))
-                        .returning(DeviceKey::as_returning())
-                        .get_result(&mut conn)
-                        .await?;
+            let _: DeviceKey = diesel::delete(key_dsl::device_key.filter(key_dsl::id.eq(path_id)))
+                .returning(DeviceKey::as_returning())
+                .get_result(conn)
+                .await?;
 
-                Ok(DeviceKeyPayload {
-                    id: key.id,
-                    status: key.status,
-                    kind,
-                })
+            Ok(DeviceKeyPayload {
+                id: key.id,
+                status: key.status,
+                kind,
             })
         })
         .await;

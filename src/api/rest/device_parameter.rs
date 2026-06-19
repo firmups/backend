@@ -10,9 +10,7 @@ use axum::http::StatusCode;
 use diesel::ExpressionMethods;
 use diesel::QueryDsl;
 use diesel::SelectableHelper;
-use diesel_async::{
-    AsyncConnection, AsyncPgConnection, RunQueryDsl, scoped_futures::ScopedFutureExt,
-};
+use diesel_async::{AsyncConnection, AsyncPgConnection, RunQueryDsl};
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 
@@ -166,36 +164,33 @@ pub async fn list_device_parameters(
         .map_err(rest::error::internal_error)?;
 
     let result = conn
-        .transaction::<_, rest::error::TransactionError, _>(|conn| {
-            async move {
-                let device_type_id = get_device_type(conn, device_id).await?;
+        .transaction::<_, rest::error::TransactionError, _>(async move |conn| {
+            let device_type_id = get_device_type(conn, device_id).await?;
 
-                let dtps: Vec<DeviceTypeParameter> = dtp_dsl::device_type_parameter
-                    .filter(dtp_dsl::device_type.eq(device_type_id))
-                    .select(DeviceTypeParameter::as_select())
-                    .load(conn)
-                    .await?;
+            let dtps: Vec<DeviceTypeParameter> = dtp_dsl::device_type_parameter
+                .filter(dtp_dsl::device_type.eq(device_type_id))
+                .select(DeviceTypeParameter::as_select())
+                .load(conn)
+                .await?;
 
-                let overrides: Vec<DeviceParameter> = dp_dsl::device_parameter
-                    .filter(dp_dsl::device.eq(device_id))
-                    .select(DeviceParameter::as_select())
-                    .load(conn)
-                    .await?;
+            let overrides: Vec<DeviceParameter> = dp_dsl::device_parameter
+                .filter(dp_dsl::device.eq(device_id))
+                .select(DeviceParameter::as_select())
+                .load(conn)
+                .await?;
 
-                let result = dtps
-                    .iter()
-                    .map(|dtp| {
-                        let override_value = overrides
-                            .iter()
-                            .find(|dp| dp.device_type_parameter == dtp.id)
-                            .and_then(|dp| dp.value.clone());
-                        effective_payload(dtp, override_value)
-                    })
-                    .collect();
+            let result = dtps
+                .iter()
+                .map(|dtp| {
+                    let override_value = overrides
+                        .iter()
+                        .find(|dp| dp.device_type_parameter == dtp.id)
+                        .and_then(|dp| dp.value.clone());
+                    effective_payload(dtp, override_value)
+                })
+                .collect();
 
-                Ok(result)
-            }
-            .scope_boxed()
+            Ok(result)
         })
         .await
         .map_err(|e| match e {
@@ -219,22 +214,19 @@ pub async fn get_device_parameter(
         .map_err(rest::error::internal_error)?;
 
     let result = conn
-        .transaction::<_, rest::error::TransactionError, _>(|conn| {
-            async move {
-                let device_type_id = get_device_type(conn, device_id).await?;
-                let dtp = get_device_type_parameter(conn, device_type_id, dtp_id).await?;
+        .transaction::<_, rest::error::TransactionError, _>(async move |conn| {
+            let device_type_id = get_device_type(conn, device_id).await?;
+            let dtp = get_device_type_parameter(conn, device_type_id, dtp_id).await?;
 
-                let override_value: Option<Vec<u8>> = dp_dsl::device_parameter
-                    .filter(dp_dsl::device.eq(device_id))
-                    .filter(dp_dsl::device_type_parameter.eq(dtp_id))
-                    .select(dp_dsl::value)
-                    .first::<Option<Vec<u8>>>(conn)
-                    .await
-                    .unwrap_or(None);
+            let override_value: Option<Vec<u8>> = dp_dsl::device_parameter
+                .filter(dp_dsl::device.eq(device_id))
+                .filter(dp_dsl::device_type_parameter.eq(dtp_id))
+                .select(dp_dsl::value)
+                .first::<Option<Vec<u8>>>(conn)
+                .await
+                .unwrap_or(None);
 
-                Ok(effective_payload(&dtp, override_value))
-            }
-            .scope_boxed()
+            Ok(effective_payload(&dtp, override_value))
         })
         .await
         .map_err(|e| match e {
@@ -259,43 +251,40 @@ pub async fn set_device_parameter(
         .map_err(rest::error::internal_error)?;
 
     let result = conn
-        .transaction::<_, rest::error::TransactionError, _>(|conn| {
-            async move {
-                let device_type_id = get_device_type_locked(conn, device_id).await?;
-                let dtp = get_device_type_parameter_locked(conn, device_type_id, dtp_id).await?;
+        .transaction::<_, rest::error::TransactionError, _>(async move |conn| {
+            let device_type_id = get_device_type_locked(conn, device_id).await?;
+            let dtp = get_device_type_parameter_locked(conn, device_type_id, dtp_id).await?;
 
-                let new_bytes = json_value_to_parameter(dtp.type_, payload.value)
-                    .map_err(|msg| rest::error::client_error(StatusCode::BAD_REQUEST, msg))?;
+            let new_bytes = json_value_to_parameter(dtp.type_, payload.value)
+                .map_err(|msg| rest::error::client_error(StatusCode::BAD_REQUEST, msg))?;
 
-                // If the new value equals the default, remove the override (revert to default)
-                if dtp.default_value.as_deref() == Some(new_bytes.as_slice()) {
-                    diesel::delete(
-                        dp_dsl::device_parameter
-                            .filter(dp_dsl::device.eq(device_id))
-                            .filter(dp_dsl::device_type_parameter.eq(dtp_id)),
-                    )
-                    .execute(conn)
-                    .await?;
+            // If the new value equals the default, remove the override (revert to default)
+            if dtp.default_value.as_deref() == Some(new_bytes.as_slice()) {
+                diesel::delete(
+                    dp_dsl::device_parameter
+                        .filter(dp_dsl::device.eq(device_id))
+                        .filter(dp_dsl::device_type_parameter.eq(dtp_id)),
+                )
+                .execute(conn)
+                .await?;
 
-                    return Ok(effective_payload(&dtp, None));
-                }
-
-                // Upsert the override
-                diesel::insert_into(dp_dsl::device_parameter)
-                    .values(&NewDeviceParameter {
-                        device: device_id,
-                        device_type_parameter: dtp_id,
-                        value: Some(new_bytes.clone()),
-                    })
-                    .on_conflict((dp_dsl::device, dp_dsl::device_type_parameter))
-                    .do_update()
-                    .set(dp_dsl::value.eq(Some(new_bytes.clone())))
-                    .execute(conn)
-                    .await?;
-
-                Ok(effective_payload(&dtp, Some(new_bytes)))
+                return Ok(effective_payload(&dtp, None));
             }
-            .scope_boxed()
+
+            // Upsert the override
+            diesel::insert_into(dp_dsl::device_parameter)
+                .values(&NewDeviceParameter {
+                    device: device_id,
+                    device_type_parameter: dtp_id,
+                    value: Some(new_bytes.clone()),
+                })
+                .on_conflict((dp_dsl::device, dp_dsl::device_type_parameter))
+                .do_update()
+                .set(dp_dsl::value.eq(Some(new_bytes.clone())))
+                .execute(conn)
+                .await?;
+
+            Ok(effective_payload(&dtp, Some(new_bytes)))
         })
         .await
         .map_err(|e| match e {
@@ -319,33 +308,30 @@ pub async fn reset_device_parameter(
         .map_err(rest::error::internal_error)?;
 
     let result = conn
-        .transaction::<_, rest::error::TransactionError, _>(|conn| {
-            async move {
-                let device_type_id = get_device_type_locked(conn, device_id).await?;
-                let dtp = get_device_type_parameter_locked(conn, device_type_id, dtp_id).await?;
+        .transaction::<_, rest::error::TransactionError, _>(async move |conn| {
+            let device_type_id = get_device_type_locked(conn, device_id).await?;
+            let dtp = get_device_type_parameter_locked(conn, device_type_id, dtp_id).await?;
 
-                if dtp.default_value.is_none() {
-                    return Err(rest::error::client_error(
-                        StatusCode::CONFLICT,
-                        format!(
-                            "parameter {} has no default value and cannot be reset",
-                            dtp_id
-                        ),
-                    )
-                    .into());
-                }
-
-                diesel::delete(
-                    dp_dsl::device_parameter
-                        .filter(dp_dsl::device.eq(device_id))
-                        .filter(dp_dsl::device_type_parameter.eq(dtp_id)),
+            if dtp.default_value.is_none() {
+                return Err(rest::error::client_error(
+                    StatusCode::CONFLICT,
+                    format!(
+                        "parameter {} has no default value and cannot be reset",
+                        dtp_id
+                    ),
                 )
-                .execute(conn)
-                .await?;
-
-                Ok(effective_payload(&dtp, None))
+                .into());
             }
-            .scope_boxed()
+
+            diesel::delete(
+                dp_dsl::device_parameter
+                    .filter(dp_dsl::device.eq(device_id))
+                    .filter(dp_dsl::device_type_parameter.eq(dtp_id)),
+            )
+            .execute(conn)
+            .await?;
+
+            Ok(effective_payload(&dtp, None))
         })
         .await
         .map_err(|e| match e {
