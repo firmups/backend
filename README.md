@@ -9,6 +9,7 @@
 
 1. Run nix build `nix build .#dockerImage`
 2. The resulting docker image tarball file is symlinked to `./result`
+3. Load the created image with `docker load < ./result`
 
 ## Development setup
 

@@ -1,0 +1,89 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "firmups.fullname" . }}
+  labels:
+    {{- include "firmups.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "firmups.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "firmups.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: {{ .Chart.Name }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 3000
+              protocol: TCP
+            - name: udp
+              containerPort: 53585
+              protocol: UDP
+          envFrom:
+            - configMapRef:
+                name: {{ include "firmups.fullname" . }}-env
+          env:
+            - name: FIRMUPS_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.postgresql.cluster.name }}-app
+                  key: uri
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.postgresql.cluster.name }}-app
+                  key: uri
+            - name: FIRMUPS_DB_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.postgresql.cluster.name }}-app
+                  key: host
+            - name: FIRMUPS_DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.postgresql.cluster.name }}-app
+                  key: user
+            - name: FIRMUPS_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.postgresql.cluster.name }}-app
+                  key: password
+            - name: FIRMUPS_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "firmups.fullname" . }}-app
+                  key: apiKey
+            - name: FIRMUPS_STORAGE_S3_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "firmups.fullname" . }}-app
+                  key: storageKeyId
+            - name: FIRMUPS_STORAGE_S3_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "firmups.fullname" . }}-app
+                  key: storageAccessKey
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
