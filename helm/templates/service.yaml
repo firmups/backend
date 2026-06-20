@@ -1,0 +1,31 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "firmups.fullname" . }}
+  labels:
+    {{- include "firmups.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.service.type }}
+  selector:
+    {{- include "firmups.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: http
+      port: {{ .Values.service.httpPort }}
+      targetPort: http
+      protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "firmups.fullname" . }}-udp
+  labels:
+    {{- include "firmups.labels" . | nindent 4 }}
+spec:
+  type: NodePort
+  selector:
+    {{- include "firmups.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: udp
+      port: {{ .Values.service.udpPort }}
+      targetPort: udp
+      protocol: UDP

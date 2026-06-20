@@ -1,0 +1,58 @@
+# NOTE: This chart deploys a CloudNativePG `Cluster` resource but does NOT
+# install the CloudNativePG operator. The operator is cluster-scoped and must
+# already be present on the cluster before installing this chart. See the
+# README for installation instructions.
+replicaCount: 2
+image:
+  repository: ghcr.io/firmups/firmups-backend
+  tag: v0.1.1
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  httpPort: 3000
+  udpPort: 53585
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+
+app:
+  logLevel: info
+  apiKey: ""
+  firmwareMaxSizeBytes: 1073741824
+  logPath: /opt/firmups/logs
+  logMaxDays: 7
+
+postgresql:
+  cluster:
+    name: firmups-db
+    instances: 3
+    storage:
+      size: 10Gi
+      storageClass: ""
+  database: firmups_backend
+  username: firmups_db
+  password: ""
+
+# External, S3-compatible object storage. This chart does NOT deploy a store;
+# you must provide an S3-compatible bucket and credentials separately (AWS S3,
+# Ceph RGW, Garage, …). This section only holds the connection details the
+# backend uses to reach it. See the README.
+storage:
+  # S3 API endpoint URL of the external store, e.g. https://s3.amazonaws.com
+  s3Endpoint: ""
+  # S3 region — must match the bucket's region.
+  region: ""
+  bucket: firmups-bucket
+  # S3 credentials with read+write access to the bucket above. Set via a
+  # secrets override file (never commit these).
+  keyId: ""
+  accessKey: ""
+
+resources: {}
+nodeSelector: {}
+tolerations: []
+affinity: {}

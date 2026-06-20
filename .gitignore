@@ -37,3 +37,7 @@ result
 
 # Bruno
 bruno/
+
+# Helm local deployment overrides (contains generated credentials)
+helm/values.local.yaml
+helm/secrets.local.yaml

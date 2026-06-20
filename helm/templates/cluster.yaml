@@ -1,0 +1,17 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: {{ .Values.postgresql.cluster.name }}
+  labels:
+    {{- include "firmups.labels" . | nindent 4 }}
+spec:
+  instances: {{ .Values.postgresql.cluster.instances }}
+  bootstrap:
+    initdb:
+      database: {{ .Values.postgresql.database }}
+      owner: {{ .Values.postgresql.username }}
+  storage:
+    size: {{ .Values.postgresql.cluster.storage.size }}
+    {{- if .Values.postgresql.cluster.storage.storageClass }}
+    storageClass: {{ .Values.postgresql.cluster.storage.storageClass }}
+    {{- end }}

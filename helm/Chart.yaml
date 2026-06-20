@@ -1,0 +1,6 @@
+apiVersion: v2
+name: firmups-backend
+description: Firmups backend Helm chart
+type: application
+version: 0.1.0
+appVersion: v0.1.1
