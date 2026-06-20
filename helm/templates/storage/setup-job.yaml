@@ -1,0 +1,90 @@
+{{- if .Values.storage.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "firmups.fullname" . }}-storage-setup
+  labels:
+    {{- include "firmups.labels" . | nindent 4 }}
+    app.kubernetes.io/component: storage
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-delete-policy": before-hook-creation
+spec:
+  template:
+    metadata:
+      labels:
+        {{- include "firmups.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: storage-setup
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: garage-setup
+          image: "{{ .Values.storage.image.repository }}:{{ .Values.storage.image.tag }}"
+          command:
+            - sh
+            - -c
+            - |
+              ADMIN_URL="http://{{ include "firmups.fullname" . }}-storage-admin:3903"
+              AUTH="Authorization: Bearer $ADMIN_TOKEN"
+
+              until wget -qO /dev/null --header "$AUTH" "$ADMIN_URL/v2/health" 2>/dev/null; do
+                echo "Waiting for Garage admin API..."
+                sleep 3
+              done
+
+              STATUS=$(wget -qO- --header "$AUTH" "$ADMIN_URL/v2/node/clusterStatus")
+              NODE_ID=$(echo "$STATUS" | grep -o '"thisNode":"[^"]*"' | cut -d'"' -f4)
+              echo "Node ID: $NODE_ID"
+
+              wget -qO /dev/null \
+                --header "$AUTH" \
+                --header "Content-Type: application/json" \
+                --post-data "{\"$NODE_ID\":{\"zone\":\"dc1\",\"capacity\":100}}" \
+                "$ADMIN_URL/v2/layout" || true
+
+              wget -qO /dev/null \
+                --header "$AUTH" \
+                --header "Content-Type: application/json" \
+                --post-data '{"version":1}' \
+                "$ADMIN_URL/v2/layout/apply" || true
+
+              wget -qO /dev/null \
+                --header "$AUTH" \
+                --header "Content-Type: application/json" \
+                --post-data "{\"keyId\":\"$KEY_ID\",\"secretKey\":\"$SECRET_KEY\",\"name\":\"firmups\"}" \
+                "$ADMIN_URL/v2/key?action=import" || true
+
+              BUCKET_RESP=$(wget -qO- \
+                --header "$AUTH" \
+                --header "Content-Type: application/json" \
+                --post-data "{\"globalAlias\":\"$BUCKET\"}" \
+                "$ADMIN_URL/v2/bucket" 2>/dev/null || \
+                wget -qO- --header "$AUTH" "$ADMIN_URL/v2/bucket?alias=$BUCKET")
+              BUCKET_ID=$(echo "$BUCKET_RESP" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+
+              wget -qO /dev/null \
+                --header "$AUTH" \
+                --header "Content-Type: application/json" \
+                --post-data "{\"bucketId\":\"$BUCKET_ID\",\"accessKeyId\":\"$KEY_ID\",\"allow\":{\"read\":true,\"write\":true,\"owner\":true}}" \
+                "$ADMIN_URL/v2/bucket/allow" || true
+
+              echo "Garage setup complete."
+          env:
+            - name: ADMIN_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "firmups.fullname" . }}-app
+                  key: garageAdminToken
+            - name: KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "firmups.fullname" . }}-app
+                  key: storageKeyId
+            - name: SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "firmups.fullname" . }}-app
+                  key: storageAccessKey
+            - name: BUCKET
+              value: {{ .Values.storage.bucket | quote }}
+{{- end }}

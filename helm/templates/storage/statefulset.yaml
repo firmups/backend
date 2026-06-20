@@ -1,0 +1,101 @@
+{{- if .Values.storage.enabled }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "firmups.fullname" . }}-storage
+  labels:
+    {{- include "firmups.labels" . | nindent 4 }}
+    app.kubernetes.io/component: storage
+spec:
+  replicas: {{ .Values.storage.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "firmups.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: storage
+  serviceName: {{ include "firmups.fullname" . }}-storage-headless
+  template:
+    metadata:
+      labels:
+        {{- include "firmups.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: storage
+    spec:
+      initContainers:
+        - name: config-init
+          image: busybox:1.37
+          command:
+            - sh
+            - -c
+            - |
+              cp /config-template/garage.toml /etc/garage/garage.toml
+              echo "rpc_public_addr = \"${POD_NAME}.{{ include "firmups.fullname" . }}-storage-headless.${POD_NAMESPACE}.svc.cluster.local:3901\"" >> /etc/garage/garage.toml
+          env:
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+          volumeMounts:
+            - name: config-template
+              mountPath: /config-template
+            - name: garage-config
+              mountPath: /etc/garage
+      containers:
+        - name: garage
+          image: "{{ .Values.storage.image.repository }}:{{ .Values.storage.image.tag }}"
+          args:
+            - -c
+            - /etc/garage/garage.toml
+            - server
+          ports:
+            - name: s3
+              containerPort: 3900
+              protocol: TCP
+            - name: rpc
+              containerPort: 3901
+              protocol: TCP
+            - name: web
+              containerPort: 3902
+              protocol: TCP
+            - name: admin
+              containerPort: 3903
+              protocol: TCP
+          volumeMounts:
+            - name: garage-config
+              mountPath: /etc/garage
+            - name: meta
+              mountPath: /var/lib/garage/meta
+            - name: data
+              mountPath: /var/lib/garage/data
+      volumes:
+        - name: config-template
+          configMap:
+            name: {{ include "firmups.fullname" . }}-storage-config
+        - name: garage-config
+          emptyDir: {}
+  volumeClaimTemplates:
+    - metadata:
+        name: meta
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        {{- if .Values.storage.persistence.meta.storageClass }}
+        storageClassName: {{ .Values.storage.persistence.meta.storageClass }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.storage.persistence.meta.size }}
+    - metadata:
+        name: data
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        {{- if .Values.storage.persistence.data.storageClass }}
+        storageClassName: {{ .Values.storage.persistence.data.storageClass }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.storage.persistence.data.size }}
+{{- end }}

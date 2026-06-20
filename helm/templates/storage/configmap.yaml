@@ -1,0 +1,36 @@
+{{- if .Values.storage.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "firmups.fullname" . }}-storage-config
+  labels:
+    {{- include "firmups.labels" . | nindent 4 }}
+data:
+  garage.toml: |
+    metadata_dir = "/var/lib/garage/meta"
+    data_dir = "/var/lib/garage/data"
+    db_engine = "sqlite"
+
+    replication_factor = {{ .Values.storage.replicationFactor }}
+
+    rpc_bind_addr = "[::]:3901"
+    rpc_secret = {{ .Values.storage.rpcSecret | quote }}
+
+    [s3_api]
+    s3_region = {{ .Values.storage.region | quote }}
+    api_bind_addr = "[::]:3900"
+    root_domain = ".s3.garage.localhost"
+
+    [s3_web]
+    bind_addr = "[::]:3902"
+    root_domain = ".web.garage.localhost"
+    index = "index.html"
+
+    [k2v_api]
+    api_bind_addr = "[::]:3904"
+
+    [admin]
+    api_bind_addr = "[::]:3903"
+    admin_token = {{ .Values.storage.adminToken | quote }}
+    metrics_token = {{ .Values.storage.metricsToken | quote }}
+{{- end }}

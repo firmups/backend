@@ -1,0 +1,69 @@
+replicaCount: 2
+
+image:
+  repository: firmups-backend
+  tag: v0.1.1
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  httpPort: 3000
+  udpPort: 53585
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+
+app:
+  logLevel: info
+  apiKey: ""
+  firmwareMaxSizeBytes: 1073741824
+  logPath: /opt/firmups/logs
+  logMaxDays: 7
+
+postgresql:
+  cluster:
+    name: firmups-db
+    instances: 3
+    storage:
+      size: 10Gi
+      storageClass: ""
+  database: firmups_backend
+  username: firmups_db
+  password: ""
+
+storage:
+  enabled: true
+  image:
+    repository: dxflrs/garage
+    tag: v2.2.0
+  replicaCount: 1
+  replicationFactor: 1
+  persistence:
+    meta:
+      size: 1Gi
+      storageClass: ""
+    data:
+      size: 50Gi
+      storageClass: ""
+  rpcSecret: ""
+  adminToken: ""
+  metricsToken: ""
+  region: garage
+  bucket: firmups-bucket
+  keyId: ""
+  accessKey: ""
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts: []
+  tls: []
+
+resources: {}
+nodeSelector: {}
+tolerations: []
+affinity: {}
