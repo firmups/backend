@@ -5,7 +5,7 @@
 replicaCount: 2
 image:
   repository: ghcr.io/firmups/firmups-backend
-  tag: v0.1.1
+  tag: v0.1.4
   pullPolicy: IfNotPresent
 
 service:
@@ -36,6 +36,9 @@ postgresql:
   database: firmups_backend
   username: firmups_db
   password: ""
+  # Image used by the init container that waits for the database to be ready.
+  # Needs psql/pg_isready on PATH; the CloudNativePG image ships them.
+  clientImage: ghcr.io/cloudnative-pg/postgresql:17.2
 
 # External, S3-compatible object storage. This chart does NOT deploy a store;
 # you must provide an S3-compatible bucket and credentials separately (AWS S3,

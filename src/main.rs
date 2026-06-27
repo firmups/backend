@@ -55,6 +55,7 @@ async fn main() {
     let db_url = std::env::var("FIRMUPS_DATABASE_URL").expect("FIRMUPS_DATABASE_URL environment variable is missing. Please set it before running the app.");
     let config = AsyncDieselConnectionManager::<diesel_async::AsyncPgConnection>::new(db_url);
     let pool = DbPool::builder()
+        .max_size(64)
         .build(config)
         .await
         .expect("Failed to create pool");

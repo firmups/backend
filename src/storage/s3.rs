@@ -78,7 +78,7 @@ impl super::Storage for S3Storage {
             self.bucket
         );
         let range = format!("bytes={}-{}", offset, offset + length - 1);
-        let out = self
+        let out = match self
             .client
             .get_object()
             .bucket(&self.bucket)
@@ -86,7 +86,23 @@ impl super::Storage for S3Storage {
             .range(range)
             .send()
             .await
-            .map_err(|e| anyhow::anyhow!("s3 get_object {} failed: {}", key, display_sdk_err(e)))?;
+        {
+            Ok(o) => o,
+            // A range whose start is at or past EOF returns 416 (Range Not
+            // Satisfiable). Treat it as a clean EOF (empty read) to match the
+            // local backend, so a firmware whose size is an exact multiple of the
+            // requested chunk size doesn't fail on the device's final past-EOF read.
+            Err(e) if e.raw_response().map(|r| r.status().as_u16()) == Some(416) => {
+                return Ok(Vec::new());
+            }
+            Err(e) => {
+                return Err(anyhow::anyhow!(
+                    "s3 get_object {} failed: {}",
+                    key,
+                    display_sdk_err(e)
+                ));
+            }
+        };
 
         let data = out
             .body

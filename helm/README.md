@@ -5,7 +5,7 @@ Deploys the Firmups backend and a PostgreSQL cluster (managed by
 **external, S3-compatible object store** that you provide.
 
 Two pieces of infrastructure must exist **before** installing this chart. They
-are deliberately *not* deployed by it:
+are deliberately _not_ deployed by it:
 
 1. **CloudNativePG operator** — installed once per cluster; this chart only
    deploys a `Cluster` custom resource that the operator reconciles.
@@ -15,21 +15,12 @@ are deliberately *not* deployed by it:
 
 ## Prerequisite 1: CloudNativePG operator
 
-Install the operator **once per cluster**. Pick whichever method matches your
-environment:
+Install the operator **once per cluster**:
 
 ```sh
-# Option A — Helm (any cluster)
 helm repo add cnpg https://cloudnative-pg.io/charts && helm repo update
 helm upgrade --install cnpg cnpg/cloudnative-pg \
   --version 0.28.3 --namespace cnpg-system --create-namespace --wait
-
-# Option B — plain manifest (any cluster)
-kubectl apply --server-side -f \
-  https://raw.githubusercontent.com/cloudnative-pg/cloudnative-pg/release-1.27/releases/cnpg-1.27.0.yaml
-
-# Option C — MicroK8s addon
-microk8s enable cloudnative-pg
 ```
 
 Verify before continuing:
@@ -53,13 +44,13 @@ it.
 Once the bucket and credentials exist, point the chart at them via the
 `storage` values:
 
-| Value                  | Description                                              |
-| ---------------------- | -------------------------------------------------------- |
-| `storage.s3Endpoint`   | S3 API endpoint URL (e.g. `https://s3.amazonaws.com`)    |
-| `storage.region`       | S3 region (must match the bucket's region)               |
-| `storage.bucket`       | Bucket name firmware is stored in                        |
-| `storage.keyId`        | S3 access key ID                                         |
-| `storage.accessKey`    | S3 secret access key                                     |
+| Value                | Description                                           |
+| -------------------- | ----------------------------------------------------- |
+| `storage.s3Endpoint` | S3 API endpoint URL (e.g. `https://s3.amazonaws.com`) |
+| `storage.region`     | S3 region (must match the bucket's region)            |
+| `storage.bucket`     | Bucket name firmware is stored in                     |
+| `storage.keyId`      | S3 access key ID                                      |
+| `storage.accessKey`  | S3 secret access key                                  |
 
 Set `keyId` and `accessKey` via a secrets override file (`-f`), never in a
 committed values file.
@@ -68,7 +59,7 @@ committed values file.
 
 ```sh
 helm upgrade --install firmups ./helm \
-  --namespace firmups --create-namespace --wait
+  --namespace firmups --create-namespace --wait # Override files: -f helm/values.local.yaml -f helm/secrets.local.yaml
 ```
 
 Provide credentials and overrides via values files (`-f`). At minimum set:

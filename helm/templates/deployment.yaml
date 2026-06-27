@@ -28,6 +28,28 @@ spec:
       tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      initContainers:
+        # Block startup until the CloudNativePG cluster has finished bootstrapping
+        # (database + role created) and is accepting authenticated connections.
+        # The backend builds its pool eagerly and does not retry, so it must not
+        # start before the database is ready.
+        - name: wait-for-db
+          image: {{ .Values.postgresql.clientImage | quote }}
+          command:
+            - sh
+            - -c
+            - |
+              until psql "$DATABASE_URL" -t -A -c 'SELECT 1' >/dev/null 2>&1; do
+                echo "waiting for database to be ready..."
+                sleep 2
+              done
+              echo "database is ready"
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.postgresql.cluster.name }}-app
+                  key: uri
       containers:
         - name: {{ .Chart.Name }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
