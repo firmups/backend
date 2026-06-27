@@ -132,14 +132,14 @@
           # Build your Rust crate/workspace with `nix build .#backend`
           backend = rustPlatform.buildRustPackage {
             pname = "firmups-backend";
-            version = "0.1.1";
+            version = "0.1.4";
 
             # Build from the repo root (flake directory)
             src = ./.;
 
             # Use cargoHash for modern nixpkgs (>= 23.11). It vendors crates automatically.
-            # First run with a dummy hash (sha256-AAAAAAAA...) to get the correct hash from the error.
-            cargoHash = "sha256-AW2dD1Xoye6K0N62IKdCqvkJoTSjKPbMdqlusu+9i/w=";
+            # First run with a dummy hash (sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=) to get the correct hash from the error.
+            cargoHash = "sha256-FzEgdP7rAWkGPY0KOaF7v2lXxC0PZ9P6GmI1d/9gF5o=";
 
             buildInputs = with pkgs; [
             ];
@@ -173,7 +173,7 @@
         {
           dockerImage = pkgs.dockerTools.buildLayeredImage {
             name = "firmups-backend";
-            tag = "v0.1.1";
+            tag = "v0.1.4";
 
             contents = [
               backend
