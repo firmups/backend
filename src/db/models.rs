@@ -55,6 +55,41 @@ pub enum ParameterType {
     Binary,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, DbEnum, serde::Serialize, serde::Deserialize)]
+#[ExistingTypePath = "crate::db::schema::sql_types::RolloutStatus"]
+#[DbValueStyle = "snake_case"]
+#[serde(rename_all = "snake_case")]
+pub enum RolloutStatus {
+    Draft,
+    Active,
+    Paused,
+    Completed,
+    Cancelled,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, DbEnum, serde::Serialize, serde::Deserialize)]
+#[ExistingTypePath = "crate::db::schema::sql_types::RolloutStageStatus"]
+#[DbValueStyle = "snake_case"]
+#[serde(rename_all = "snake_case")]
+pub enum RolloutStageStatus {
+    Pending,
+    InProgress,
+    Completed,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, DbEnum, serde::Serialize, serde::Deserialize)]
+#[ExistingTypePath = "crate::db::schema::sql_types::PrerequisiteOperator"]
+#[DbValueStyle = "snake_case"]
+#[serde(rename_all = "snake_case")]
+pub enum PrerequisiteOperator {
+    Eq,
+    Ne,
+    Lt,
+    Lte,
+    Gt,
+    Gte,
+}
+
 // -----------------------------
 // Models
 // -----------------------------
@@ -308,4 +343,94 @@ pub struct NewTlsKeyDetails {
     pub device_key: i32,
     pub valid_from: NaiveDateTime,
     pub valid_to: NaiveDateTime,
+}
+
+// rollout
+#[derive(
+    Debug,
+    Clone,
+    Identifiable,
+    Queryable,
+    Selectable,
+    Associations,
+    AsChangeset,
+    serde::Serialize,
+    serde::Deserialize,
+)]
+#[diesel(table_name = crate::db::schema::rollout)]
+#[diesel(belongs_to(DeviceType, foreign_key = device_type))]
+#[diesel(belongs_to(Firmware, foreign_key = firmware))]
+pub struct Rollout {
+    pub id: i32,
+    pub name: String,
+    pub device_type: i32,
+    pub firmware: i32,
+    pub status: RolloutStatus,
+    pub created_at: NaiveDateTime,
+    pub updated_at: NaiveDateTime,
+}
+
+#[derive(Debug, Clone, Insertable)]
+#[diesel(table_name = crate::db::schema::rollout)]
+pub struct NewRollout {
+    pub name: String,
+    pub device_type: i32,
+    pub firmware: i32,
+    pub status: RolloutStatus,
+}
+
+#[derive(Debug, Clone, AsChangeset)]
+#[diesel(table_name = crate::db::schema::rollout)]
+pub struct UpdateRollout {
+    pub name: Option<String>,
+    pub status: Option<RolloutStatus>,
+    pub updated_at: Option<NaiveDateTime>,
+}
+
+// rollout_prerequisite
+#[derive(Debug, Clone, Identifiable, Queryable, Selectable, Associations)]
+#[diesel(table_name = crate::db::schema::rollout_prerequisite)]
+#[diesel(belongs_to(Rollout, foreign_key = rollout))]
+#[diesel(belongs_to(DeviceTypeParameter, foreign_key = device_type_parameter))]
+pub struct RolloutPrerequisite {
+    pub id: i32,
+    pub rollout: i32,
+    pub device_type_parameter: i32,
+    pub operator: PrerequisiteOperator,
+    pub value: Vec<u8>,
+}
+
+#[derive(Debug, Clone, Insertable)]
+#[diesel(table_name = crate::db::schema::rollout_prerequisite)]
+pub struct NewRolloutPrerequisite {
+    pub rollout: i32,
+    pub device_type_parameter: i32,
+    pub operator: PrerequisiteOperator,
+    pub value: Vec<u8>,
+}
+
+// rollout_stage
+#[derive(
+    Debug, Clone, Identifiable, Queryable, Selectable, Associations, AsChangeset, serde::Serialize,
+)]
+#[diesel(table_name = crate::db::schema::rollout_stage)]
+#[diesel(belongs_to(Rollout, foreign_key = rollout))]
+pub struct RolloutStage {
+    pub id: i32,
+    pub rollout: i32,
+    pub stage_order: i32,
+    pub target_percent: i16,
+    pub success_threshold_percent: i16,
+    pub status: RolloutStageStatus,
+    pub started_at: Option<NaiveDateTime>,
+    pub completed_at: Option<NaiveDateTime>,
+}
+
+#[derive(Debug, Clone, Insertable)]
+#[diesel(table_name = crate::db::schema::rollout_stage)]
+pub struct NewRolloutStage {
+    pub rollout: i32,
+    pub stage_order: i32,
+    pub target_percent: i16,
+    pub success_threshold_percent: i16,
 }

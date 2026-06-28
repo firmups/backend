@@ -26,6 +26,8 @@ tags:
     description: Firmware endpoints
   - name: DeviceTypeFirmware
     description: Link between firmware and DeviceType
+  - name: Rollout
+    description: Staged firmware rollouts with parameter-based prerequisites
 paths:
   /device_type:
     get:
@@ -1350,6 +1352,742 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/InternalError"
+  /rollout:
+    get:
+      tags:
+        - Rollout
+      security:
+        - api_key: []
+      summary: List all rollouts
+      operationId: listRollouts
+      responses:
+        "200":
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Rollout"
+        "500":
+          description: Internal error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InternalError"
+    post:
+      tags:
+        - Rollout
+      security:
+        - api_key: []
+      summary: Create a new rollout (in draft state)
+      operationId: createRollout
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NewRollout"
+      responses:
+        "201":
+          description: Rollout created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Rollout"
+        "400":
+          description: Invalid input data (unknown device type/firmware, or firmware not compatible with the device type)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "422":
+          description: Input data could not be parsed
+          content:
+            application/json:
+              schema:
+                type: string
+                description: Parse error description
+        "500":
+          description: Internal error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InternalError"
+  /rollout/{id}:
+    get:
+      tags:
+        - Rollout
+      security:
+        - api_key: []
+      summary: Get a rollout
+      operationId: getRollout
+      parameters:
+        - name: id
+          in: path
+          description: ID of the rollout
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Rollout"
+        "404":
+          description: Rollout not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Internal error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InternalError"
+    patch:
+      tags:
+        - Rollout
+      security:
+        - api_key: []
+      summary: Update a rollout's name
+      operationId: updateRollout
+      parameters:
+        - name: id
+          in: path
+          description: ID of the rollout
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateRollout"
+      responses:
+        "200":
+          description: Rollout updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Rollout"
+        "400":
+          description: Invalid input data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Rollout not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Internal error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InternalError"
+    delete:
+      tags:
+        - Rollout
+      security:
+        - api_key: []
+      summary: Delete a rollout
+      description: Blocked while the rollout is active or paused; cancel it first. Prerequisites and stages are deleted along with it.
+      operationId: deleteRollout
+      parameters:
+        - name: id
+          in: path
+          description: ID of the rollout
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Rollout"
+        "404":
+          description: Rollout not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: Rollout is active or paused and cannot be deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Internal error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InternalError"
+  /rollout/{id}/prerequisite:
+    get:
+      tags:
+        - Rollout
+      security:
+        - api_key: []
+      summary: List the rollout's parameter prerequisites
+      operationId: listRolloutPrerequisites
+      parameters:
+        - name: id
+          in: path
+          description: ID of the rollout
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RolloutPrerequisite"
+        "404":
+          description: Rollout not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Internal error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InternalError"
+    post:
+      tags:
+        - Rollout
+      security:
+        - api_key: []
+      summary: Add a parameter prerequisite (draft rollouts only)
+      description: A device is eligible only if its effective value (override, else device-type default) satisfies every prerequisite. Ordering operators (lt/lte/gt/gte) are only valid for integer and float parameters.
+      operationId: createRolloutPrerequisite
+      parameters:
+        - name: id
+          in: path
+          description: ID of the rollout
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NewRolloutPrerequisite"
+      responses:
+        "201":
+          description: Prerequisite created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RolloutPrerequisite"
+        "400":
+          description: Invalid input (unknown parameter, parameter not on the rollout's device type, illegal operator/type combination, or value not encodable)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Rollout not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: Rollout is not in draft, or a prerequisite with this parameter and operator already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "422":
+          description: Input data could not be parsed
+          content:
+            application/json:
+              schema:
+                type: string
+                description: Parse error description
+        "500":
+          description: Internal error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InternalError"
+  /rollout/{id}/prerequisite/{prereq_id}:
+    delete:
+      tags:
+        - Rollout
+      security:
+        - api_key: []
+      summary: Delete a prerequisite (draft rollouts only)
+      operationId: deleteRolloutPrerequisite
+      parameters:
+        - name: id
+          in: path
+          description: ID of the rollout
+          required: true
+          schema:
+            type: integer
+        - name: prereq_id
+          in: path
+          description: ID of the prerequisite
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Prerequisite deleted
+        "404":
+          description: Rollout or prerequisite not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: Rollout is not in draft
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Internal error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InternalError"
+  /rollout/{id}/stage:
+    get:
+      tags:
+        - Rollout
+      security:
+        - api_key: []
+      summary: List the rollout's stages (ordered)
+      operationId: listRolloutStages
+      parameters:
+        - name: id
+          in: path
+          description: ID of the rollout
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RolloutStage"
+        "404":
+          description: Rollout not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Internal error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InternalError"
+    post:
+      tags:
+        - Rollout
+      security:
+        - api_key: []
+      summary: Add a stage (draft rollouts only)
+      description: target_percent is the cumulative percentage of the eligible population reached by the end of this stage; it must strictly increase with stage_order.
+      operationId: createRolloutStage
+      parameters:
+        - name: id
+          in: path
+          description: ID of the rollout
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NewRolloutStage"
+      responses:
+        "201":
+          description: Stage created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RolloutStage"
+        "400":
+          description: Invalid input (out-of-range percentages, stage_order < 1, or target_percent not strictly increasing with stage_order)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Rollout not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: Rollout is not in draft, or stage_order already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "422":
+          description: Input data could not be parsed
+          content:
+            application/json:
+              schema:
+                type: string
+                description: Parse error description
+        "500":
+          description: Internal error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InternalError"
+  /rollout/{id}/stage/{stage_id}:
+    delete:
+      tags:
+        - Rollout
+      security:
+        - api_key: []
+      summary: Delete a stage (draft rollouts only)
+      operationId: deleteRolloutStage
+      parameters:
+        - name: id
+          in: path
+          description: ID of the rollout
+          required: true
+          schema:
+            type: integer
+        - name: stage_id
+          in: path
+          description: ID of the stage
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Stage deleted
+        "404":
+          description: Rollout or stage not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: Rollout is not in draft
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Internal error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InternalError"
+  /rollout/{id}/start:
+    post:
+      tags:
+        - Rollout
+      security:
+        - api_key: []
+      summary: Start a rollout (draft -> active)
+      description: Requires at least one stage and a final stage reaching 100%. No firmware is pushed until the first advance.
+      operationId: startRollout
+      parameters:
+        - name: id
+          in: path
+          description: ID of the rollout
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Rollout started
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RolloutStatus"
+        "400":
+          description: Rollout has no stages, or no stage reaches 100%
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Rollout not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: Rollout is not in draft
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Internal error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InternalError"
+  /rollout/{id}/advance:
+    post:
+      tags:
+        - Rollout
+      security:
+        - api_key: []
+      summary: Advance the rollout to the next stage
+      description: >
+        Completes the current in-progress stage once its cohort has converged to at least its
+        success_threshold_percent (current firmware == target), then sets desired_firmware on the
+        next stage's cumulative cohort and marks it in_progress. When the final stage's threshold is
+        met, the rollout becomes completed. Blocked with 409 if the current stage has not converged.
+      operationId: advanceRollout
+      parameters:
+        - name: id
+          in: path
+          description: ID of the rollout
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Rollout advanced
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RolloutStatus"
+        "404":
+          description: Rollout not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: Rollout is not active, or the current stage has not converged enough to advance
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Internal error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InternalError"
+  /rollout/{id}/pause:
+    post:
+      tags:
+        - Rollout
+      security:
+        - api_key: []
+      summary: Pause an active rollout (active -> paused)
+      operationId: pauseRollout
+      parameters:
+        - name: id
+          in: path
+          description: ID of the rollout
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Rollout paused
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Rollout"
+        "404":
+          description: Rollout not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: Rollout is not active
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Internal error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InternalError"
+  /rollout/{id}/resume:
+    post:
+      tags:
+        - Rollout
+      security:
+        - api_key: []
+      summary: Resume a paused rollout (paused -> active)
+      operationId: resumeRollout
+      parameters:
+        - name: id
+          in: path
+          description: ID of the rollout
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Rollout resumed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Rollout"
+        "404":
+          description: Rollout not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: Rollout is not paused
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Internal error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InternalError"
+  /rollout/{id}/cancel:
+    post:
+      tags:
+        - Rollout
+      security:
+        - api_key: []
+      summary: Cancel a rollout
+      description: Allowed from draft, active or paused. Already-applied desired_firmware values are left untouched (no rollback).
+      operationId: cancelRollout
+      parameters:
+        - name: id
+          in: path
+          description: ID of the rollout
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Rollout cancelled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Rollout"
+        "404":
+          description: Rollout not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: Rollout is already completed or cancelled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Internal error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InternalError"
+  /rollout/{id}/status:
+    get:
+      tags:
+        - Rollout
+      security:
+        - api_key: []
+      summary: Get rollout progress
+      description: Returns the eligible population size plus per-stage cohort size, targeted and converged counts.
+      operationId: getRolloutStatus
+      parameters:
+        - name: id
+          in: path
+          description: ID of the rollout
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RolloutStatus"
+        "404":
+          description: Rollout not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Internal error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InternalError"
+  /rollout/{id}/devices:
+    get:
+      tags:
+        - Rollout
+      security:
+        - api_key: []
+      summary: List the rollout's eligible devices
+      description: Eligible devices in cohort order, each with its targeted/converged state and the lowest stage whose cumulative cohort includes it.
+      operationId: listRolloutDevices
+      parameters:
+        - name: id
+          in: path
+          description: ID of the rollout
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RolloutDevice"
+        "404":
+          description: Rollout not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Internal error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InternalError"
 components:
   schemas:
     NewDeviceType:
@@ -1626,6 +2364,242 @@ components:
           type: string
       required:
         - key
+    RolloutStatusEnum:
+      type: string
+      enum: ["draft", "active", "paused", "completed", "cancelled"]
+    RolloutStageStatus:
+      type: string
+      enum: ["pending", "in_progress", "completed"]
+    PrerequisiteOperator:
+      type: string
+      description: "eq/ne apply to all parameter types; lt/lte/gt/gte are only valid for integer and float parameters"
+      enum: ["eq", "ne", "lt", "lte", "gt", "gte"]
+    NewRollout:
+      type: object
+      properties:
+        name:
+          type: string
+        device_type:
+          description: Id of the device type this rollout targets
+          type: integer
+        firmware:
+          description: Id of the target firmware (must be linked to the device type)
+          type: integer
+      required:
+        - name
+        - device_type
+        - firmware
+    UpdateRollout:
+      type: object
+      properties:
+        name:
+          type: string
+      required:
+        - name
+    Rollout:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        device_type:
+          type: integer
+        firmware:
+          description: Id of the target firmware
+          type: integer
+        status:
+          $ref: "#/components/schemas/RolloutStatusEnum"
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+      required:
+        - id
+        - name
+        - device_type
+        - firmware
+        - status
+        - created_at
+        - updated_at
+    NewRolloutPrerequisite:
+      type: object
+      properties:
+        device_type_parameter:
+          description: Id of the DeviceTypeParameter to test (must belong to the rollout's device type)
+          type: integer
+        operator:
+          $ref: "#/components/schemas/PrerequisiteOperator"
+        value:
+          description: "Comparison value encoded according to the parameter type: string for String, number for Integer/Float, boolean for Boolean, base64 string for Binary"
+          oneOf:
+            - type: string
+            - type: number
+            - type: boolean
+      required:
+        - device_type_parameter
+        - operator
+        - value
+    RolloutPrerequisite:
+      type: object
+      properties:
+        id:
+          type: integer
+        device_type_parameter:
+          type: integer
+        key:
+          description: Key of the referenced parameter
+          type: string
+        type:
+          $ref: "#/components/schemas/ParameterType"
+        operator:
+          $ref: "#/components/schemas/PrerequisiteOperator"
+        value:
+          description: "Comparison value encoded according to the parameter type"
+          oneOf:
+            - type: string
+            - type: number
+            - type: boolean
+      required:
+        - id
+        - device_type_parameter
+        - key
+        - type
+        - operator
+        - value
+    NewRolloutStage:
+      type: object
+      properties:
+        stage_order:
+          description: Execution order (>= 1). target_percent must strictly increase with this.
+          type: integer
+        target_percent:
+          description: Cumulative percentage of the eligible population reached by the end of this stage (1-100)
+          type: integer
+        success_threshold_percent:
+          description: Percentage of this stage's cohort that must converge before the next stage can start (0-100, defaults to 100)
+          type: integer
+          default: 100
+      required:
+        - stage_order
+        - target_percent
+    RolloutStage:
+      type: object
+      properties:
+        id:
+          type: integer
+        rollout:
+          type: integer
+        stage_order:
+          type: integer
+        target_percent:
+          type: integer
+        success_threshold_percent:
+          type: integer
+        status:
+          $ref: "#/components/schemas/RolloutStageStatus"
+        started_at:
+          type: string
+          format: date-time
+          nullable: true
+        completed_at:
+          type: string
+          format: date-time
+          nullable: true
+      required:
+        - id
+        - rollout
+        - stage_order
+        - target_percent
+        - success_threshold_percent
+        - status
+    RolloutStageProgress:
+      type: object
+      properties:
+        id:
+          type: integer
+        stage_order:
+          type: integer
+        target_percent:
+          type: integer
+        success_threshold_percent:
+          type: integer
+        status:
+          $ref: "#/components/schemas/RolloutStageStatus"
+        cohort_size:
+          description: Number of eligible devices in this stage's cumulative cohort
+          type: integer
+        targeted:
+          description: Cohort devices whose desired_firmware is the target firmware
+          type: integer
+        converged:
+          description: Cohort devices whose current firmware is the target firmware
+          type: integer
+      required:
+        - id
+        - stage_order
+        - target_percent
+        - success_threshold_percent
+        - status
+        - cohort_size
+        - targeted
+        - converged
+    RolloutStatus:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        status:
+          $ref: "#/components/schemas/RolloutStatusEnum"
+        device_type:
+          type: integer
+        firmware:
+          type: integer
+        eligible:
+          description: Total number of eligible devices
+          type: integer
+        targeted:
+          description: Eligible devices whose desired_firmware is the target firmware
+          type: integer
+        converged:
+          description: Eligible devices whose current firmware is the target firmware
+          type: integer
+        stages:
+          type: array
+          items:
+            $ref: "#/components/schemas/RolloutStageProgress"
+      required:
+        - id
+        - name
+        - status
+        - device_type
+        - firmware
+        - eligible
+        - targeted
+        - converged
+        - stages
+    RolloutDevice:
+      type: object
+      properties:
+        device:
+          description: Device id
+          type: integer
+        targeted:
+          type: boolean
+        converged:
+          type: boolean
+        stage_order:
+          description: Lowest stage (by order) whose cumulative cohort includes this device; null if not yet in any cohort
+          type: integer
+          nullable: true
+      required:
+        - device
+        - targeted
+        - converged
     InternalError:
       description: Masked internal error. The id can be matched with the backend logs.
       type: object

@@ -13,6 +13,7 @@ mod device_type_firmware;
 mod device_type_parameter;
 mod error;
 mod firmware;
+mod rollout;
 mod serde_helpers;
 
 #[derive(Clone)]
@@ -218,6 +219,69 @@ impl RestApi {
             .route(
                 "/device_type_firmware/{id}",
                 axum::routing::delete(device_type_firmware::delete_device_type_firmware),
+            )
+            .route("/rollout", axum::routing::get(rollout::list_rollouts))
+            .route("/rollout", axum::routing::post(rollout::create_rollout))
+            .route("/rollout/{id}", axum::routing::get(rollout::get_rollout))
+            .route(
+                "/rollout/{id}",
+                axum::routing::patch(rollout::update_rollout),
+            )
+            .route(
+                "/rollout/{id}",
+                axum::routing::delete(rollout::delete_rollout),
+            )
+            .route(
+                "/rollout/{id}/prerequisite",
+                axum::routing::get(rollout::list_prerequisites),
+            )
+            .route(
+                "/rollout/{id}/prerequisite",
+                axum::routing::post(rollout::create_prerequisite),
+            )
+            .route(
+                "/rollout/{id}/prerequisite/{prereq_id}",
+                axum::routing::delete(rollout::delete_prerequisite),
+            )
+            .route(
+                "/rollout/{id}/stage",
+                axum::routing::get(rollout::list_stages),
+            )
+            .route(
+                "/rollout/{id}/stage",
+                axum::routing::post(rollout::create_stage),
+            )
+            .route(
+                "/rollout/{id}/stage/{stage_id}",
+                axum::routing::delete(rollout::delete_stage),
+            )
+            .route(
+                "/rollout/{id}/start",
+                axum::routing::post(rollout::start_rollout),
+            )
+            .route(
+                "/rollout/{id}/advance",
+                axum::routing::post(rollout::advance_rollout),
+            )
+            .route(
+                "/rollout/{id}/pause",
+                axum::routing::post(rollout::pause_rollout),
+            )
+            .route(
+                "/rollout/{id}/resume",
+                axum::routing::post(rollout::resume_rollout),
+            )
+            .route(
+                "/rollout/{id}/cancel",
+                axum::routing::post(rollout::cancel_rollout),
+            )
+            .route(
+                "/rollout/{id}/status",
+                axum::routing::get(rollout::rollout_status),
+            )
+            .route(
+                "/rollout/{id}/devices",
+                axum::routing::get(rollout::list_rollout_devices),
             )
             .with_state(config.clone())
             .layer(axum::middleware::from_fn_with_state(

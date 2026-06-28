@@ -1,0 +1,6 @@
+DROP TABLE IF EXISTS rollout_stage RESTRICT;
+DROP TABLE IF EXISTS rollout_prerequisite RESTRICT;
+DROP TABLE IF EXISTS rollout RESTRICT;
+DROP TYPE IF EXISTS prerequisite_operator RESTRICT;
+DROP TYPE IF EXISTS rollout_stage_status RESTRICT;
+DROP TYPE IF EXISTS rollout_status RESTRICT;
